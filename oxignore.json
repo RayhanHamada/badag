@@ -7,5 +7,6 @@
     "**/hooks/use-mobile.ts",
     "**/lib/highlighter.tsx",
     "**/routeTree.gen.ts",
-    "**/skills-lock.json"
+    "**/skills-lock.json",
+    "**/.badag"
 ]

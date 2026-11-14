@@ -1,5 +1,7 @@
 mod commands;
 
+use std::path::PathBuf;
+
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
@@ -16,8 +18,16 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// Start the local development server
-    Dev,
+    /// Bundle DAG modules into one script per DAG
+    Dev {
+        /// Also emit TypeScript declarations
+        #[arg(short = 't', long)]
+        types: bool,
+
+        /// Directory containing DAG modules
+        #[arg(long, value_name = "DIR", default_value = "dags")]
+        input: PathBuf,
+    },
 
     /// Print a shell completion script to stdout
     #[command(after_long_help = commands::completions::HELP)]
@@ -28,9 +38,10 @@ enum Command {
     },
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     match Cli::parse().command {
-        Command::Dev => commands::dev::run()?,
+        Command::Dev { types, input } => commands::dev::run(types, &input).await?,
         Command::Completions { shell } => commands::completions::print(shell),
     }
 
