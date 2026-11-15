@@ -187,6 +187,31 @@ impl DevProcess {
 
         (stdout, stderr)
     }
+
+    #[cfg(unix)]
+    fn terminate(&self, signal: &str) {
+        let status = Command::new("kill")
+            .arg(format!("-{signal}"))
+            .arg(self.child.id().to_string())
+            .status()
+            .expect("kill should run");
+        assert!(status.success(), "failed to send SIG{signal}");
+    }
+
+    #[cfg(unix)]
+    fn wait_for_exit(&mut self) -> std::process::ExitStatus {
+        let deadline = Instant::now() + DEV_TIMEOUT;
+        loop {
+            if let Some(status) = self.child.try_wait().expect("child status is readable") {
+                return status;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "timed out waiting for badag to exit"
+            );
+            thread::sleep(Duration::from_millis(25));
+        }
+    }
 }
 
 impl Drop for DevProcess {
@@ -621,6 +646,33 @@ fn dev_ignores_changes_to_external_modules() {
     assert!(file_contains(&output_dir.join("alpha.js"), "external-one"));
 
     fs::remove_dir_all(&cwd).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn dev_exits_cleanly_when_terminated() {
+    for signal in ["INT", "TERM"] {
+        let cwd = temp_dir(&format!("dev-signal-{signal}"));
+        let dags = cwd.join("dags");
+        fs::create_dir(&dags).unwrap();
+        fs::write(
+            dags.join("alpha.ts"),
+            "export default createDAG(\"alpha\");\n",
+        )
+        .unwrap();
+
+        let mut dev = DevProcess::spawn(&cwd, &["dev"]);
+        dev.wait_for_line("Watching dags for changes");
+        dev.terminate(signal);
+
+        let status = dev.wait_for_exit();
+        assert!(status.success(), "SIG{signal}: {status}");
+        let (stdout, stderr) = dev.finish();
+        assert_eq!(stdout, "Watching dags for changes\n", "SIG{signal}");
+        assert!(stderr.is_empty(), "SIG{signal}: {stderr}");
+
+        fs::remove_dir_all(&cwd).unwrap();
+    }
 }
 
 #[test]

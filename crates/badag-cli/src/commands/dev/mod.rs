@@ -3,6 +3,7 @@ mod bundle;
 mod check;
 mod declarations;
 mod files;
+mod shutdown;
 mod watch;
 
 use std::collections::BTreeMap;
@@ -12,6 +13,7 @@ use anyhow::{Context, Result, bail};
 
 pub async fn run(types: bool, input: &Path) -> Result<()> {
     let cwd = std::env::current_dir().context("failed to read the working directory")?;
+    let mut shutdown = shutdown::Signals::new()?;
     let files = files::find_dag_files(input)?;
 
     let violations = check::find_violations(&files)?;
@@ -47,5 +49,14 @@ pub async fn run(types: bool, input: &Path) -> Result<()> {
         declarations::emit(&output_dir, &files)?;
     }
 
-    watch::run(&cwd, input, &input_root, &output_dir, types, &mut dags).await
+    watch::run(
+        &cwd,
+        input,
+        &input_root,
+        &output_dir,
+        types,
+        &mut shutdown,
+        &mut dags,
+    )
+    .await
 }

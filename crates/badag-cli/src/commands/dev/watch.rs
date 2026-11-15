@@ -6,7 +6,7 @@ use std::time::Duration;
 use anyhow::{Context, Result, bail};
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 
-use super::{bundle, check, declarations, files};
+use super::{bundle, check, declarations, files, shutdown};
 
 const DEBOUNCE: Duration = Duration::from_millis(75);
 
@@ -35,6 +35,7 @@ pub(super) async fn run(
     input_root: &Path,
     output_dir: &Path,
     types: bool,
+    shutdown: &mut shutdown::Signals,
     dags: &mut BTreeMap<PathBuf, Dag>,
 ) -> Result<()> {
     let context = DevContext {
@@ -59,7 +60,17 @@ pub(super) async fn run(
 
     println!("Watching {} for changes", input.display());
 
-    while let Some(event) = rx.recv().await {
+    'watching: loop {
+        let event = tokio::select! {
+            result = shutdown.wait() => {
+                result?;
+                break;
+            }
+            event = rx.recv() => match event {
+                Some(event) => event,
+                None => break,
+            },
+        };
         let mut changed = HashSet::new();
         collect_paths(event, output_dir, &mut changed);
         if changed.is_empty() {
@@ -67,10 +78,16 @@ pub(super) async fn run(
         }
 
         loop {
-            match tokio::time::timeout(DEBOUNCE, rx.recv()).await {
+            let debounce = tokio::select! {
+                result = shutdown.wait() => {
+                    result?;
+                    break 'watching;
+                }
+                result = tokio::time::timeout(DEBOUNCE, rx.recv()) => result,
+            };
+            match debounce {
                 Ok(Some(event)) => collect_paths(event, output_dir, &mut changed),
-                Ok(None) => break,
-                Err(_) => break,
+                Ok(None) | Err(_) => break,
             }
         }
 
