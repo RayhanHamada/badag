@@ -10,6 +10,8 @@ import type {
     RegisteredTaskDefinition,
 } from "../task/types/definitions";
 import type { DAG } from "./dag";
+import { serializeTask } from "./serialization";
+import type { TaskJson } from "./serialization";
 
 /** Structural definition shape accepted by DAG registration. */
 export type TaskDefinition = AnyTaskDefinition;
@@ -124,6 +126,18 @@ export class DAGTask<TaskName extends string = string> {
      */
     get downstream(): ReadonlySet<DAGTask> {
         return stateOf(this).downstream;
+    }
+
+    /**
+     * Return a JSON-safe snapshot of this task.
+     *
+     * Same shape as one entry of `DAG.toJSON().tasks`: task ID, name, kind,
+     * description, trigger rule, config, serializable kind-specific fields,
+     * and edges listed by task name. Functions are omitted.
+     * `JSON.stringify(task)` calls this method.
+     */
+    toJSON(): TaskJson {
+        return serializeTask(this);
     }
 
     /**

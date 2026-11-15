@@ -145,8 +145,13 @@ function taskJsonBase(task: DAGTask): Omit<TaskJsonBase<TaskKind>, "kind"> {
     };
 }
 
-/** Snapshot one task, omitting functions and absent optional fields. */
-function taskJson(task: DAGTask): TaskJson {
+/**
+ * Snapshot one task, omitting functions and absent optional fields.
+ *
+ * Also backs `DAGTask.toJSON()`, so a task handle and the same task inside
+ * `DAG.toJSON()` always have the same shape.
+ */
+export function serializeTask(task: DAGTask): TaskJson {
     const base = taskJsonBase(task);
     const { definition } = task;
 
@@ -205,6 +210,6 @@ function taskJson(task: DAGTask): TaskJson {
 export function serializeDAG(name: string, tasks: readonly DAGTask[]): DAGJson {
     return {
         name,
-        tasks: tasks.map((task) => taskJson(task)),
+        tasks: tasks.map((task) => serializeTask(task)),
     };
 }

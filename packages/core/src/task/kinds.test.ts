@@ -776,6 +776,24 @@ describe("DAG integration", () => {
         expect(dag.toJSON().tasks[0]).not.toHaveProperty("pokeIntervalMs");
     });
 
+    it("snapshots every registered kind through DAGTask.toJSON()", () => {
+        const dag = createDAG("kinds").chain(
+            task("extract", { fn: () => "raw" }),
+            sensor("ready", { predicate: () => true, pokeIntervalMs: 5000 }),
+            delay("wait", { durationMs: 25 }),
+            branch("route", { choose: () => "left" }),
+            shortCircuit("gate", { condition: () => true }),
+            trigger("start", { dagName: "child", waitForCompletion: true })
+        );
+
+        const snapshots = dag
+            .topologicalSort()
+            .map((registered) => registered.toJSON());
+
+        // A handle and its DAG entry are the same snapshot, kind fields included.
+        expect(snapshots).toStrictEqual(dag.toJSON().tasks);
+    });
+
     it("gives every kind a distinct task ID for the same name", () => {
         const definitions = [
             task("shared", { fn: () => 0 }),

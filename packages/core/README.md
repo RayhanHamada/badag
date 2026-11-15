@@ -876,34 +876,41 @@ import { createDAG, task } from "@badag/core";
 const extract = task("extract", {
     fn: () => "raw",
     description: "Read source data",
+    config: { timeout_ms: 30_000 },
 });
 const load = task("load", { fn: () => "stored" });
 
 const dag = createDAG("etl").chain(extract, load);
 
-dag.toJSON();
-// {
-//     name: "etl",
-//     tasks: [
-//         {
-//             id: "…",
-//             name: "extract",
-//             kind: "task",
-//             triggerRule: "all_success",
-//             description: "Read source data",
-//             upstream: [],
-//             downstream: ["load"],
-//         },
-//         {
-//             id: "…",
-//             name: "load",
-//             kind: "task",
-//             triggerRule: "all_success",
-//             upstream: ["extract"],
-//             downstream: [],
-//         },
-//     ],
-// }
+const json = dag.toJSON();
+```
+
+The resulting JSON structure:
+
+```json
+{
+    "name": "etl",
+    "tasks": [
+        {
+            "id": "…",
+            "name": "extract",
+            "kind": "task",
+            "triggerRule": "all_success",
+            "description": "Read source data",
+            "config": { "timeout_ms": 30000 },
+            "upstream": [],
+            "downstream": ["load"]
+        },
+        {
+            "id": "…",
+            "name": "load",
+            "kind": "task",
+            "triggerRule": "all_success",
+            "upstream": ["extract"],
+            "downstream": []
+        }
+    ]
+}
 ```
 
 - `id` is the registered task's task ID; `name` is unique within the DAG.
@@ -915,10 +922,56 @@ dag.toJSON();
 - `config` is included when the task has one.
 - Behavior callbacks (`fn`, `predicate`, `choose`, `condition`) are omitted, so the snapshot is an inspection format, not a round-trip format. Rebuild a runnable DAG with a task factory and `chain()`.
 
+Kind-specific fields sit on the same task object. An excerpt of the pricing DAG from the quick start:
+
+```json
+[
+    {
+        "id": "…",
+        "name": "source-ready",
+        "kind": "sensor",
+        "triggerRule": "all_success",
+        "pokeIntervalMs": 60000,
+        "upstream": [],
+        "downstream": ["extract"]
+    },
+    {
+        "id": "…",
+        "name": "settle",
+        "kind": "delay",
+        "triggerRule": "all_success",
+        "durationMs": 300000,
+        "upstream": ["us", "eu"],
+        "downstream": ["gate"]
+    },
+    {
+        "id": "…",
+        "name": "start-child",
+        "kind": "trigger",
+        "triggerRule": "all_success",
+        "dagName": "publish",
+        "waitForCompletion": true,
+        "upstream": ["report"],
+        "downstream": []
+    }
+]
+```
+
+Branch and short-circuit tasks add no kind-specific fields, so their entries match the regular task shape above.
+
 `JSON.stringify(dag)` calls `toJSON()` automatically:
 
 ```ts
 const encoded = JSON.stringify(dag); // same shape as dag.toJSON()
+```
+
+A registered task handle produces the same snapshot on its own: `task.toJSON()` returns exactly that task's entry in `DAG.toJSON().tasks`, so per-task snapshots cannot drift from the DAG snapshot.
+
+```ts
+const loadTask = dag.getTask("load");
+
+loadTask?.toJSON(); // the "load" entry from dag.toJSON().tasks
+JSON.stringify(loadTask); // that entry alone, functions omitted
 ```
 
 Grouped chains serialize with edges listed by name in both directions:
@@ -951,7 +1004,7 @@ grouped.toJSON().tasks.map(({ name, upstream, downstream }) => ({
 | --- | --- | --- |
 | `createDAG` | function | `createDAG(name)` returns a `DAG`; keeps the literal name type, so `chain()` checks apply |
 | `DAG` | class | `name`, `tasks`, `getTask()`, `addDependency()`, `addDependencies()`, `chain()`, `parse`, `validate()`, `topologicalSort()`, `toJSON()` |
-| `DAGTask` | type | Registered task handle; `id`, `name`, `kind`, `definition`, `description`, `config`, `triggerRule`, `upstream`, `downstream`, `setUpstream()`, `setDownstream()`, `dependsOn()`. Minted by `DAG`, not constructible by consumers |
+| `DAGTask` | type | Registered task handle; `id`, `name`, `kind`, `definition`, `description`, `config`, `triggerRule`, `upstream`, `downstream`, `setUpstream()`, `setDownstream()`, `dependsOn()`, `toJSON()`. Minted by `DAG`, not constructible by consumers |
 | `task` | function | Creates a regular task definition from a name and `{ fn }` input |
 | `sensor` | function | Creates a sensor definition storing a predicate and optional `pokeIntervalMs`; the SDK does not poll |
 | `delay` | function | Creates a delay definition storing `durationMs`; the SDK does not wait |
@@ -1006,6 +1059,7 @@ grouped.toJSON().tasks.map(({ name, upstream, downstream }) => ({
 - `DAG` carries internal type parameters for the definitions and edges added through `chain()`. Annotating a value as plain `DAG` intentionally opts out of the compile-time checks above.
 - `parse` types each operand as a task or a flat list of tasks, so a string, a number, or a nested list fails to typecheck. It adds those definitions to the DAG's type state as signatures and declared branch sets, like `chain`, so duplicate definitions are caught at compile time; it adds no edges, because TypeScript cannot infer the literal `>>`/`<<` segments. Use `chain()` when compile-time cycle detection matters.
 - `toJSON()` returns a fresh `DAGJson` snapshot with `kind`, kind-specific serializable fields, and edges keyed by task name; functions are removed.
+- `DAGTask.toJSON()` returns the same one-task `TaskJson` snapshot that task contributes to `DAG.toJSON().tasks`, and `JSON.stringify(task)` calls it.
 - `validate()` returns a readonly `DAGViolation[]` and never throws; the codes are a closed set, so a scheduler can switch on `code` exhaustively.
 
 ## Errors

@@ -1023,6 +1023,35 @@ describe("JSON representation", () => {
         expect(encoded).toBe(JSON.stringify(dag.toJSON()));
     });
 
+    it("serializes a task handle like the same task's DAG entry", () => {
+        const dag = createDAG("etl");
+        const extract = addTask(dag, { name: "extract", fn: () => "raw" });
+
+        const load = addTask(dag, {
+            name: "load",
+            fn: () => "stored",
+            description: "Write the result",
+            config: { retries: 2 },
+            triggerRule: TRIGGER_RULE_ENUM.AllDone,
+        });
+
+        extract.setDownstream(load);
+
+        expect(extract.toJSON()).toStrictEqual(dag.toJSON().tasks[0]);
+        expect(load.toJSON()).toStrictEqual(dag.toJSON().tasks[1]);
+    });
+
+    it("stringifies a task handle through toJSON", () => {
+        const dag = createDAG("etl");
+        const extract = addTask(dag, { name: "extract", fn: () => "raw" });
+
+        const encoded = JSON.stringify(extract);
+
+        expect(encoded).not.toContain('"fn"');
+        expect(encoded).toBe(JSON.stringify(extract.toJSON()));
+        expect(encoded).toBe(JSON.stringify(dag.toJSON().tasks[0]));
+    });
+
     it("serializes a fan-out and fan-in chain built in one call", () => {
         const { cleanA, cleanB, dag, extract, join, publish, validate } =
             buildComplexDag();

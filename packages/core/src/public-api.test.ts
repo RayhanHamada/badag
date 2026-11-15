@@ -170,6 +170,9 @@ describe("public task types", () => {
 
         expectTypeOf(json).toEqualTypeOf<DAGJson>();
         expectTypeOf(taskJson).toEqualTypeOf<TaskJson>();
+        expectTypeOf(dag.getTask("report")?.toJSON()).toEqualTypeOf<
+            TaskJson | undefined
+        >();
         expectTypeOf(taskJson.triggerRule).toEqualTypeOf<TriggerRule>();
         expectTypeOf(taskJson.upstream).toEqualTypeOf<readonly string[]>();
         expect(taskJson.triggerRule).toBe(TRIGGER_RULE_ENUM.AllDone);
