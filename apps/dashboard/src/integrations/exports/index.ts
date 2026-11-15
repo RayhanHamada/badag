@@ -73,7 +73,7 @@ export const DynamicWorkflow = createDynamicWorkflowEntrypoint<Env>(
             return {
                 modules,
                 mainModule,
-                compatibilityDate: "2026-11-01",
+                compatibilityDate: "2026-11-15",
 
                 // The tenant sees this as a normal Workflow binding.
                 env: {

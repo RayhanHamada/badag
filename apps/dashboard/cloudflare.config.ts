@@ -16,7 +16,7 @@ export default defineConfig(({ mode }) => {
         worker: {
             entrypoint,
             name: APP_NAME,
-            compatibilityDate: "2025-09-02",
+            compatibilityDate: "2026-11-15",
             compatibilityFlags: ["nodejs_compat"],
 
             env: {
