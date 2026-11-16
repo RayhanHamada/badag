@@ -1,10 +1,10 @@
 import { OpenAPIGenerator } from "@orpc/openapi";
 import { ValibotToJsonSchemaConverter } from "@orpc/valibot";
 
+import { apiContract } from "./contract";
 import { API_ERROR_JSON_SCHEMA, API_ERROR_STATUS_MAP } from "./errors";
 import { apiDefinitions } from "./models";
-import { apiRouter } from "./router";
-import { playgroundDefinitions } from "./routes/playground";
+import { playgroundDefinitions } from "./routes/playground.contract";
 
 const generator = new OpenAPIGenerator({
     converters: [
@@ -24,7 +24,7 @@ const generator = new OpenAPIGenerator({
 });
 
 export function generateOpenApiDocument() {
-    return generator.generate(apiRouter, {
+    return generator.generate(apiContract, {
         version: "3.1.0",
         base: {
             info: {

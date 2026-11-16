@@ -1,12 +1,7 @@
-import { ORPCError } from "@orpc/server";
+import { NotImplementedError } from "./errors";
 
-import { NOT_IMPLEMENTED_MESSAGE } from "./errors";
-
-// Stub handlers throw this until the corresponding data access and
-// orchestration logic lands. The error map on each procedure documents the
-// resulting 501 response.
+// Stub handlers throw the contract-declared `NOT_IMPLEMENTED` error until the
+// corresponding data access and orchestration logic lands.
 export const notImplemented = (): never => {
-    throw new ORPCError("NOT_IMPLEMENTED", {
-        message: NOT_IMPLEMENTED_MESSAGE,
-    });
+    throw new NotImplementedError();
 };

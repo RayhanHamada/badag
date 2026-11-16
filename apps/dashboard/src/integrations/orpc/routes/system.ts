@@ -1,16 +1,9 @@
-import { base } from "../base";
-import { healthSchema } from "../models";
+import { implement } from "@orpc/server";
 
-export const systemRouter = {
-    health: base
-        .route({
-            method: "GET",
-            path: "/health",
-            tags: ["System"],
-            summary: "API health",
-            description: "Returns `ok` when the public API is reachable.",
-            successDescription: "Service is healthy.",
-        })
-        .output(healthSchema)
-        .handler(() => ({ status: "ok" as const })),
-};
+import { systemContract } from "./system.contract";
+
+const os = implement(systemContract);
+
+export const systemRouter = os.router({
+    health: os.health.handler(() => ({ status: "ok" as const })),
+});

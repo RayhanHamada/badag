@@ -1,16 +1,23 @@
 import { COMMON_ERROR_STATUS_MAP } from "@orpc/openapi";
+import { error } from "@orpc/server";
 import type { AnyORPCError, ErrorMap } from "@orpc/server";
 import { ValibotToJsonSchemaConverter } from "@orpc/valibot";
 import * as v from "valibot";
 
 import { apiErrorSchema } from "./models";
 
-export const NOT_IMPLEMENTED_MESSAGE =
+const NOT_IMPLEMENTED_MESSAGE =
     "This endpoint is part of the public API contract but is not implemented yet.";
+
+// Reusable typesafe error for stub handlers that cannot access the per-handler
+// `errors` constructors.
+export const NotImplementedError = error("NOT_IMPLEMENTED", {
+    message: NOT_IMPLEMENTED_MESSAGE,
+});
 
 // Messages documented per procedure through `.errors()`.
 export const NOT_IMPLEMENTED_ERROR_MAP = {
-    NOT_IMPLEMENTED: { message: NOT_IMPLEMENTED_MESSAGE },
+    NOT_IMPLEMENTED: NotImplementedError,
 } satisfies ErrorMap;
 
 export const NOT_FOUND_ERROR_MAP = {
@@ -47,12 +54,15 @@ const BAD_REQUEST_DATA_SCHEMA = v.object({
 
 // Validation failures surface as the compact `{ code, message }` body; oRPC
 // reports them as `BAD_REQUEST`, so fold the issue messages into one line.
-export function encodeApiError(error: AnyORPCError) {
-    if (error.code !== "BAD_REQUEST") {
-        return { code: error.code.toLowerCase(), message: error.message };
+export function encodeApiError(orpcError: AnyORPCError) {
+    if (orpcError.code !== "BAD_REQUEST") {
+        return {
+            code: orpcError.code.toLowerCase(),
+            message: orpcError.message,
+        };
     }
 
-    const parsed = v.safeParse(BAD_REQUEST_DATA_SCHEMA, error.data);
+    const parsed = v.safeParse(BAD_REQUEST_DATA_SCHEMA, orpcError.data);
     const issues = parsed.success ? parsed.output.issues : [];
 
     return {
@@ -60,6 +70,6 @@ export function encodeApiError(error: AnyORPCError) {
         message:
             issues.length > 0
                 ? issues.map((issue) => issue.message).join("; ")
-                : error.message,
+                : orpcError.message,
     };
 }
