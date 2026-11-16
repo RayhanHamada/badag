@@ -2,7 +2,7 @@
 
 The Badag web app: a TanStack Start (React 19) dashboard running on Cloudflare Workers, with D1 for DAG and run records, a Durable Object for orchestration, and a Workflow for task execution.
 
-The overview and activity pages render static demo data from `src/features/dashboard/data.ts`, and every `/api/v1` domain handler returns `501`. The routes, schemas, and storage layout below are the seam the real data access plugs into.
+The overview and activity pages render static demo data from `src/features/dashboard/data.ts`, while `/playground` runs real per-tenant dynamic Workflows. The remaining `/api/v1` domain handlers return `501`; the routes, schemas, and storage layout below are the seam the real data access plugs into.
 
 ## Requirements
 
@@ -26,7 +26,7 @@ bun db:migrate
 bun dev
 ```
 
-`bun dev` delegates to `vite dev` and serves <http://localhost:5173>. The dashboard overview is the root page; activity lives at `/activity`. No credentials or environment variables are required.
+`bun dev` delegates to `vite dev` and serves <http://localhost:5173>. The dashboard overview is the root page; activity lives at `/activity`, and the Workflow playground at `/playground`. No credentials or environment variables are required.
 
 Run `bun db:clean-generate` only when the schema is unreleased, then `bun db:migrate` again.
 
@@ -51,8 +51,10 @@ Run `bun db:clean-generate` only when the schema is unreleased, then `bun db:mig
 | --- | --- |
 | `src/routes/` | File-based TanStack Router routes: dashboard pages and the API catch-alls |
 | `src/features/dashboard/` | Overview and activity components, hooks, and demo data |
+| `src/features/playground/` | Playground page, run panel, API client, and the workflow spec plus tenant module generator |
 | `src/integrations/db/` | D1 Drizzle client and the Durable Object migration runner |
 | `src/integrations/hono/` | Public `/api/v1` app: OpenAPI routes and schemas |
+| `src/integrations/dynamic-worker/` | Universal Worker Loader integration: definition schema, content-addressed loader, and dispatcher factory |
 | `src/integrations/exports/` | Durable Object and Workflow classes re-exported by the Worker entry |
 | `src/integrations/tanstack-query/` | Query client context and SSR bridging |
 | `src/lib/theme.ts` | Light/dark preference: storage, document class, and the pre-paint head script |
@@ -68,9 +70,9 @@ Declared in `cloudflare.config.ts`:
 | Binding | Type | Use |
 | --- | --- | --- |
 | `MAIN_DB` | D1 | DAGs, tasks, edges, and runs |
-| `LOADER` | Worker loader | Bundles tenant workflow code |
+| `LOADER` | Worker loader | Loads generated tenant workflow modules |
 | `TASK_ORCHESTRATOR_DO` | Durable Object (`TaskOrchestratorDO`) | Orchestrator state in Durable Object SQLite |
-| `DYNAMIC_WORKFLOW` | Workflow (`DynamicWorkflow`) | Per-run task execution |
+| `DYNAMIC_WORKFLOW` | Workflow (`DynamicWorkflow`) | Single dispatcher Workflow that runs every tenant's code |
 
 `MAIN_DB` is bound to the placeholder id `00000000000000000000000000000000`, which keeps local development anonymous. Replace it with a real database id before deploying.
 
@@ -82,6 +84,20 @@ Both schemas live in the internal `@badag/db-schema` package, so the migrations 
 bun db:generate:main   # main-db → migrations/main-db
 bun db:generate:do     # orchestrator-db → migrations/orchestrator-db
 ```
+
+## Dynamic workflow playground
+
+`/playground` demonstrates running a different Workflow implementation per tenant from one `DYNAMIC_WORKFLOW` binding:
+
+1. The page compiles a tenant id and ordered steps into an ES module (`tenant.js`) and sends it to `POST /api/v1/playground/runs`.
+2. The API compiles the spec into a serialisable dynamic worker definition and loads it through `LOADER`, passing a `WORKFLOWS` binding wrapped with `wrapWorkflowBinding(definition)`. The tenant sees a normal Workflow binding.
+3. The tenant calls `env.WORKFLOWS.create()`. The wrapped binding tags the persisted params with the worker definition.
+4. The single `DynamicWorkflow` entrypoint from the universal `integrations/dynamic-worker` integration validates that definition, loads the same module, and forwards `run()` to its entrypoint.
+5. `GET /api/v1/playground/runs/{runId}` polls the dispatcher's instance until it reaches `complete` or `errored`, then returns the tenant's step trace and output.
+
+Changing the tenant or steps changes the generated module and the loader cache key, so each spec runs its own code without a deploy. The tenant only imports `cloudflare:workers`; the generated source is also rendered on the page.
+
+`src/features/playground/workflow-spec.ts` is the single source for the spec schemas, the operation list, and `buildTenantModuleSource`; `src/features/playground/dynamic-worker.ts` turns a spec into the loader-independent worker definition. The dispatcher and loader under `src/integrations/dynamic-worker/` never import a feature.
 
 ## Public API
 
@@ -97,8 +113,9 @@ Everything under `/api/v1` is served by the Hono app in `src/integrations/hono/`
 | Runs | `GET`/`POST /dags/{dagId}/runs`, `GET /runs`, `GET /runs/{runId}`, `POST /runs/{runId}/cancel` |
 | Task executions | `GET /runs/{runId}/tasks`, `GET /runs/{runId}/tasks/{taskExecutionId}` |
 | Schedules | `GET /schedules`, `GET`/`PUT`/`DELETE /schedules/{scheduleId}` |
+| Playground | `POST /playground/runs`, `GET /playground/runs/{runId}` |
 
-Every endpoint above is declared with a Zod response schema but currently answers `501 not_implemented`; `health` and the docs are the only working handlers. Request validation failures answer `422 invalid_request`. Errors share one shape:
+The `Playground` endpoints are implemented; `health` and the docs work too. The rest are declared with a Zod response schema but answer `501 not_implemented` until the data access lands. Request validation failures answer `422 invalid_request`. Errors share one shape:
 
 ```json
 { "code": "not_implemented", "message": "…" }
@@ -110,7 +127,7 @@ Every endpoint above is declared with a Zod response schema but currently answer
 bun run test:e2e
 ```
 
-Vitest drives Playwright against a Vite dev server that `e2e/global-setup.ts` boots on `127.0.0.1:3100`; each run writes `reports/vitest-e2e-junit.xml`. The suite asserts that the overview renders at `/`, activity renders at `/activity`, and the public API health check responds without credentials.
+Vitest drives Playwright against a Vite dev server that `e2e/global-setup.ts` boots on `127.0.0.1:3100`; each run writes `reports/vitest-e2e-junit.xml`. The suite asserts that the overview renders at `/`, activity renders at `/activity`, the playground starts and completes a dynamic workflow at `/playground`, and the public API health check responds without credentials.
 
 ## Deploy
 

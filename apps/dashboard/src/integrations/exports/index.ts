@@ -1,4 +1,4 @@
-// oxlint-disable no-unused-private-class-members no-this-before-super
+// oxlint-disable no-unused-private-class-members
 
 // Durable Object and Workflow classes exported by the dashboard worker.
 // Re-exported from the Worker entry (`src/server.ts`) so `@cloudflare/vite-plugin`
@@ -6,19 +6,12 @@
 // names under `exports`.
 
 import type { schema } from "@badag/db-schema/orchestrator-db";
-import {
-    createDynamicWorkflowEntrypoint,
-    wrapWorkflowBinding,
-} from "@cloudflare/dynamic-workflows";
-import { createWorker } from "@cloudflare/worker-bundler";
 import { DurableObject } from "cloudflare:workers";
-import type { WorkflowEntrypoint } from "cloudflare:workers";
 import { drizzle } from "drizzle-orm/durable-sqlite";
 import type { DrizzleSqliteDODatabase } from "drizzle-orm/durable-sqlite";
 
 import { migrateTaskOrchestratorDB } from "@/integrations/db/orchestrator";
-
-export { DynamicWorkflowBinding } from "@cloudflare/dynamic-workflows";
+import { createDynamicWorkerEntrypoint } from "@/integrations/dynamic-worker/entrypoint";
 
 const MIGRATED_KEY = "migrated";
 
@@ -54,40 +47,9 @@ export class TaskOrchestratorDO extends DurableObject<
     }
 }
 
-async function fetchTenantCode(tenantId: string) {
-    return `${tenantId}`;
-}
+// One entrypoint backs every dynamic workflow run. The metadata attached at
+// `create()` time carries the worker definition, so this dispatcher stays
+// feature-agnostic; see `integrations/dynamic-worker`.
+export const DynamicWorkflow = createDynamicWorkerEntrypoint<Env>();
 
-export const DynamicWorkflow = createDynamicWorkflowEntrypoint<Env>(
-    async ({ env, metadata }) => {
-        const tenantId = String(metadata.tenantId);
-
-        const stub = env.LOADER.get(tenantId, async () => {
-            const { mainModule, modules } = await createWorker({
-                files: {
-                    "src/index.ts": await fetchTenantCode(tenantId),
-                    "package.json": JSON.stringify({}),
-                },
-            });
-
-            return {
-                modules,
-                mainModule,
-                compatibilityDate: "2026-11-15",
-
-                // The tenant sees this as a normal Workflow binding.
-                env: {
-                    WORKFLOWS: wrapWorkflowBinding({ tenantId }),
-                },
-            };
-        });
-
-        // SAFETY: just because
-        // oxlint-disable-next-line anti-slop/no-chained-type-assertions
-        const entrypoint = stub.getEntrypoint(
-            "TenantWorkflow"
-        ) as unknown as WorkflowEntrypoint<Env>;
-
-        return entrypoint;
-    }
-);
+export { DynamicWorkflowBinding } from "@cloudflare/dynamic-workflows";

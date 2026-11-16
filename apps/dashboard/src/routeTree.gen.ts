@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as DashboardRouteRouteImport } from './routes/_dashboard/route'
 import { Route as DashboardIndexRouteImport } from './routes/_dashboard/index'
 import { Route as DashboardActivityRouteImport } from './routes/_dashboard/activity'
+import { Route as DashboardPlaygroundRouteImport } from './routes/_dashboard/playground'
 import { Route as ApiV1SplatRouteImport } from './routes/api/v1/$'
 
 const DashboardRouteRoute = DashboardRouteRouteImport.update({
@@ -28,6 +29,11 @@ const DashboardActivityRoute = DashboardActivityRouteImport.update({
   path: '/activity',
   getParentRoute: () => DashboardRouteRoute,
 } as any)
+const DashboardPlaygroundRoute = DashboardPlaygroundRouteImport.update({
+  id: '/playground',
+  path: '/playground',
+  getParentRoute: () => DashboardRouteRoute,
+} as any)
 const ApiV1SplatRoute = ApiV1SplatRouteImport.update({
   id: '/api/v1/$',
   path: '/api/v1/$',
@@ -37,10 +43,12 @@ const ApiV1SplatRoute = ApiV1SplatRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof DashboardIndexRoute
   '/activity': typeof DashboardActivityRoute
+  '/playground': typeof DashboardPlaygroundRoute
   '/api/v1/$': typeof ApiV1SplatRoute
 }
 export interface FileRoutesByTo {
   '/activity': typeof DashboardActivityRoute
+  '/playground': typeof DashboardPlaygroundRoute
   '/': typeof DashboardIndexRoute
   '/api/v1/$': typeof ApiV1SplatRoute
 }
@@ -48,18 +56,20 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_dashboard': typeof DashboardRouteRouteWithChildren
   '/_dashboard/activity': typeof DashboardActivityRoute
+  '/_dashboard/playground': typeof DashboardPlaygroundRoute
   '/_dashboard/': typeof DashboardIndexRoute
   '/api/v1/$': typeof ApiV1SplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/activity' | '/api/v1/$'
+  fullPaths: '/' | '/activity' | '/playground' | '/api/v1/$'
   fileRoutesByTo: FileRoutesByTo
-  to: '/activity' | '/' | '/api/v1/$'
+  to: '/activity' | '/playground' | '/' | '/api/v1/$'
   id:
     | '__root__'
     | '/_dashboard'
     | '/_dashboard/activity'
+    | '/_dashboard/playground'
     | '/_dashboard/'
     | '/api/v1/$'
   fileRoutesById: FileRoutesById
@@ -92,6 +102,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardActivityRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
+    '/_dashboard/playground': {
+      id: '/_dashboard/playground'
+      path: '/playground'
+      fullPath: '/playground'
+      preLoaderRoute: typeof DashboardPlaygroundRouteImport
+      parentRoute: typeof DashboardRouteRoute
+    }
     '/api/v1/$': {
       id: '/api/v1/$'
       path: '/api/v1/$'
@@ -104,11 +121,13 @@ declare module '@tanstack/react-router' {
 
 interface DashboardRouteRouteChildren {
   DashboardActivityRoute: typeof DashboardActivityRoute
+  DashboardPlaygroundRoute: typeof DashboardPlaygroundRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
 }
 
 const DashboardRouteRouteChildren: DashboardRouteRouteChildren = {
   DashboardActivityRoute: DashboardActivityRoute,
+  DashboardPlaygroundRoute: DashboardPlaygroundRoute,
   DashboardIndexRoute: DashboardIndexRoute,
 }
 

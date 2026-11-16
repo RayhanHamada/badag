@@ -3,6 +3,7 @@ import { Scalar } from "@scalar/hono-api-reference";
 import type { ErrorHandler } from "hono";
 
 import { registerDagRoutes } from "./routes/dags";
+import { registerPlaygroundRoutes } from "./routes/playground";
 import { registerRunRoutes } from "./routes/runs";
 import { registerScheduleRoutes } from "./routes/schedules";
 import { registerSystemRoutes } from "./routes/system";
@@ -56,10 +57,17 @@ publicApi.doc31("/api/v1/docs/json", {
             name: "System",
             description: "Service health.",
         },
+        {
+            name: "Playground",
+            description:
+                "Per-tenant dynamic Workflow demonstration backed by the Worker Loader.",
+        },
     ],
 });
 
 registerDagRoutes(publicApi);
+
+registerPlaygroundRoutes(publicApi);
 
 registerRunRoutes(publicApi);
 

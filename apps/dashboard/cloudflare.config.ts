@@ -29,6 +29,8 @@ export default defineConfig(({ mode }) => {
                     worker: APP_NAME,
                     exportName: TASK_ORCHESTRATOR_CLASS_NAME,
                 }),
+                // Must match DYNAMIC_WORKFLOW_BINDING in
+                // src/integrations/dynamic-worker/constants.ts.
                 DYNAMIC_WORKFLOW: bindings.workflow({
                     worker: APP_NAME,
                     name: "dynamic-workflow",
@@ -39,6 +41,9 @@ export default defineConfig(({ mode }) => {
             exports: {
                 [TASK_ORCHESTRATOR_CLASS_NAME]: exports.durableObject({
                     storage: "sqlite",
+                }),
+                [DYNAMIC_WORKFLOW_CLASS_NAME]: exports.workflow({
+                    name: "dynamic-workflow",
                 }),
             },
         },
