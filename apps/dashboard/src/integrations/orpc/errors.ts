@@ -1,29 +1,27 @@
-import type { JsonSchema } from "@orpc/json-schema";
 import { COMMON_ERROR_STATUS_MAP } from "@orpc/openapi";
-import type { AnyORPCError } from "@orpc/server";
+import type { AnyORPCError, ErrorMap } from "@orpc/server";
+import { ValibotToJsonSchemaConverter } from "@orpc/valibot";
 import * as v from "valibot";
+
+import { apiErrorSchema } from "./models";
 
 export const NOT_IMPLEMENTED_MESSAGE =
     "This endpoint is part of the public API contract but is not implemented yet.";
 
-// Documented on every procedure through the shared builder.
-export const INPUT_ERROR_MAP = {
-    BAD_REQUEST: { message: "Invalid request." },
-} as const;
-
+// Messages documented per procedure through `.errors()`.
 export const NOT_IMPLEMENTED_ERROR_MAP = {
     NOT_IMPLEMENTED: { message: NOT_IMPLEMENTED_MESSAGE },
-} as const;
+} satisfies ErrorMap;
 
 export const NOT_FOUND_ERROR_MAP = {
     NOT_FOUND: { message: "Resource not found." },
-} as const;
+} satisfies ErrorMap;
 
 export const TENANT_ERROR_MAP = {
     TENANT_ERROR: {
         message: "The tenant worker could not start the workflow.",
     },
-} as const;
+} satisfies ErrorMap;
 
 // Shared by the handler (wire encoding) and the generator (documentation) so
 // the published contract matches what clients actually receive.
@@ -33,46 +31,35 @@ export const API_ERROR_STATUS_MAP = {
     TENANT_ERROR: 502,
 } as const;
 
-export const API_ERROR_JSON_SCHEMA: JsonSchema = {
-    type: "object",
-    properties: {
-        code: {
-            type: "string",
-            description: "Machine-readable error code.",
-        },
-        message: {
-            type: "string",
-            description: "Human-readable error message.",
-        },
-    },
-    required: ["code", "message"],
-};
+// Generated from the same Valibot schema registered as `ApiError`, so the
+// documented error body (including descriptions) cannot drift from the model.
+const jsonSchemaConverter = new ValibotToJsonSchemaConverter();
 
-// oRPC attaches the Standard Schema issues to `BAD_REQUEST` errors; parse the
-// documented shape before reading it.
+export const [API_ERROR_JSON_SCHEMA] = jsonSchemaConverter.convert(
+    apiErrorSchema,
+    "output"
+);
+
+// oRPC attaches the Standard Schema issues to `BAD_REQUEST` errors.
 const BAD_REQUEST_DATA_SCHEMA = v.object({
     issues: v.array(v.object({ message: v.string() })),
 });
 
-function validationMessage(error: AnyORPCError): string | undefined {
-    const parsed = v.safeParse(BAD_REQUEST_DATA_SCHEMA, error.data);
-
-    if (!parsed.success || parsed.output.issues.length === 0) {
-        return undefined;
-    }
-
-    return parsed.output.issues.map((issue) => issue.message).join("; ");
-}
-
-// oRPC reports schema failures as `BAD_REQUEST`; surface them as the compact
-// `{ code, message }` body the API has always returned.
+// Validation failures surface as the compact `{ code, message }` body; oRPC
+// reports them as `BAD_REQUEST`, so fold the issue messages into one line.
 export function encodeApiError(error: AnyORPCError) {
-    if (error.code === "BAD_REQUEST") {
-        return {
-            code: "invalid_request",
-            message: validationMessage(error) ?? error.message,
-        };
+    if (error.code !== "BAD_REQUEST") {
+        return { code: error.code.toLowerCase(), message: error.message };
     }
 
-    return { code: error.code.toLowerCase(), message: error.message };
+    const parsed = v.safeParse(BAD_REQUEST_DATA_SCHEMA, error.data);
+    const issues = parsed.success ? parsed.output.issues : [];
+
+    return {
+        code: "invalid_request",
+        message:
+            issues.length > 0
+                ? issues.map((issue) => issue.message).join("; ")
+                : error.message,
+    };
 }
