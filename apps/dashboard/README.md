@@ -53,7 +53,7 @@ Run `bun db:clean-generate` only when the schema is unreleased, then `bun db:mig
 | `src/features/dashboard/` | Overview and activity components, hooks, and demo data |
 | `src/features/playground/` | Playground page, run panel, API client, and the workflow spec plus tenant module generator |
 | `src/integrations/db/` | D1 Drizzle client and the Durable Object migration runner |
-| `src/integrations/hono/` | Public `/api/v1` app: OpenAPI routes and schemas |
+| `src/integrations/orpc/` | Public `/api/v1` oRPC app: OpenAPI procedures and Valibot schemas |
 | `src/integrations/dynamic-worker/` | Universal Worker Loader integration: definition schema, content-addressed loader, and dispatcher factory |
 | `src/integrations/exports/` | Durable Object and Workflow classes re-exported by the Worker entry |
 | `src/integrations/tanstack-query/` | Query client context and SSR bridging |
@@ -101,7 +101,7 @@ Changing the tenant or steps changes the generated module and the loader cache k
 
 ## Public API
 
-Everything under `/api/v1` is served by the Hono app in `src/integrations/hono/`, mounted through the `src/routes/api/v1/$.ts` catch-all.
+Everything under `/api/v1` is served by the oRPC OpenAPI handler in `src/integrations/orpc/`, mounted through the `src/routes/api/v1/$.ts` catch-all. Procedures declare their HTTP metadata inline, Valibot validates inputs and outputs, and the OpenAPI 3.1 document is generated from those schemas.
 
 - `GET /api/v1/health` — liveness check returning `{ "status": "ok" }`.
 - `GET /api/v1/docs` — Scalar reference UI; the OpenAPI 3.1 document is at `/api/v1/docs/json`.
@@ -115,7 +115,7 @@ Everything under `/api/v1` is served by the Hono app in `src/integrations/hono/`
 | Schedules | `GET /schedules`, `GET`/`PUT`/`DELETE /schedules/{scheduleId}` |
 | Playground | `POST /playground/runs`, `GET /playground/runs/{runId}` |
 
-The `Playground` endpoints are implemented; `health` and the docs work too. The rest are declared with a Zod response schema but answer `501 not_implemented` until the data access lands. Request validation failures answer `422 invalid_request`. Errors share one shape:
+The `Playground` endpoints are implemented; `health` and the docs work too. The rest are declared with a Valibot response schema but answer `501 not_implemented` until the data access lands. Request validation failures answer `422 invalid_request`. Errors share one shape:
 
 ```json
 { "code": "not_implemented", "message": "…" }
