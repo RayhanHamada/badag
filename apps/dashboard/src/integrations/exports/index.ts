@@ -50,6 +50,6 @@ export class TaskOrchestratorDO extends DurableObject<
 // One entrypoint backs every dynamic workflow run. The metadata attached at
 // `create()` time carries the worker definition, so this dispatcher stays
 // feature-agnostic; see `integrations/dynamic-worker`.
-export const DynamicWorkflow = createDynamicWorkerEntrypoint<Env>();
+export const DynamicWorkflow = createDynamicWorkerEntrypoint();
 
 export { DynamicWorkflowBinding } from "@cloudflare/dynamic-workflows";

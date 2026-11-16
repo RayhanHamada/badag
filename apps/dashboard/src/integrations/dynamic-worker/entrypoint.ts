@@ -3,14 +3,11 @@ import type { WorkflowRunner } from "@cloudflare/dynamic-workflows";
 
 import { dynamicWorkerDefinitionSchema } from "./definition";
 import { loadDynamicWorker } from "./loader";
-import type { DynamicWorkerHostEnv } from "./loader";
 
 // The dispatcher every dynamic workflow run returns to. It rebuilds the worker
 // from the metadata attached at `create()` time and forwards `run()` into the
 // module's entrypoint, so it never learns which feature produced the run.
-export function createDynamicWorkerEntrypoint<
-    Env extends DynamicWorkerHostEnv,
->() {
+export function createDynamicWorkerEntrypoint() {
     return createDynamicWorkflowEntrypoint<Env, unknown, unknown>(
         async ({ env, metadata }) => {
             const definition =
