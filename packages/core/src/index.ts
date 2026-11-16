@@ -51,6 +51,8 @@ export type {
     CreateShortCircuit,
     CreateTask,
     CreateTrigger,
+    DAGName,
+    DAGNameRegistry,
     DelayTaskDefinition,
     DelayTaskInput,
     MaybePromise,

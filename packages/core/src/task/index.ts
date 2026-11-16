@@ -39,6 +39,8 @@ export type {
     TaskSchemas,
 } from "./types/base";
 
+export type { DAGName, DAGNameRegistry } from "./types/dag-name";
+
 export type {
     AnyBranchTaskDefinition,
     AnyDelayTaskDefinition,

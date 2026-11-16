@@ -43,6 +43,8 @@ import type {
     BranchTaskDefinition,
     CreateTask,
     DAGJson,
+    DAGName,
+    DAGNameRegistry,
     DAGTask,
     DelayTaskDefinition,
     SensorTaskDefinition,
@@ -584,6 +586,30 @@ waitForBackup.waitForCompletion; // true
 ```
 
 A scheduler reads these fields, starts the target DAG, and waits when requested.
+
+##### Typing the target DAG name
+
+`dagName` accepts any non-blank string by default. Augment `DAGNameRegistry` to narrow it to the DAG names your project declares, so a misspelled target fails to typecheck:
+
+```ts
+// dag-names.d.ts
+import type {} from "@badag/core";
+
+declare module "@badag/core" {
+    interface DAGNameRegistry {
+        // keys are DAG names; the values are ignored
+        "backup-dag": true;
+        "restore-dag": true;
+    }
+}
+```
+
+```ts
+trigger("backup", { dagName: "backup-dag" }); // ok
+trigger("backup", { dagName: "backup_dag" }); // type error
+```
+
+The registry is type-only: `trigger()` still stores any non-blank name at runtime, the `DAGName` export widens back to `string` while the interface has no keys, and augmenting `@badag/sdk` narrows the same type.
 
 #### Inspecting a registered kind
 

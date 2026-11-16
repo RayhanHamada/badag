@@ -6,6 +6,7 @@ import type {
     TaskSchemas,
     TrimTaskName,
 } from "./base";
+import type { DAGName } from "./dag-name";
 
 /**
  * Input to the trigger factory after the name.
@@ -16,9 +17,9 @@ export interface TriggerTaskInput<
 >
     extends TaskMetadata, TaskSchemas<Input, Output> {
     /**
-     * Name of the DAG to trigger.
+     * Name of the DAG to trigger; narrowed by `DAGNameRegistry`.
      */
-    readonly dagName: string;
+    readonly dagName: DAGName;
     /**
      * Whether the trigger waits for the target DAG to finish; defaults to false.
      */
@@ -39,9 +40,9 @@ export interface TriggerTaskDefinition<
     Output
 > {
     /**
-     * Name of the DAG to trigger.
+     * Name of the DAG to trigger; narrowed by `DAGNameRegistry`.
      */
-    readonly dagName: string;
+    readonly dagName: DAGName;
     /**
      * Whether the trigger waits for the target DAG to finish.
      */

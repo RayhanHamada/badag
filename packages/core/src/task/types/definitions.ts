@@ -1,6 +1,7 @@
 import type { TASK_KIND_ENUM } from "../kind";
 import type { AnySchema, AnyTaskFn, TaskDefinitionBase, TaskFn } from "./base";
 import type { BranchTaskDefinition } from "./branch";
+import type { DAGName } from "./dag-name";
 import type { DelayTaskDefinition } from "./delay";
 import type { SensorTaskDefinition } from "./sensor";
 import type { ShortCircuitTaskDefinition } from "./short-circuit";
@@ -66,7 +67,7 @@ export interface AnyTriggerTaskDefinition extends TaskDefinitionBase<
     AnySchema,
     AnySchema
 > {
-    readonly dagName: string;
+    readonly dagName: DAGName;
     readonly waitForCompletion: boolean;
 }
 
