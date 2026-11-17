@@ -25,7 +25,7 @@ import type { RegisterAll } from "./signatures";
  * set, otherwise the error message.
  */
 export type ParseProblem<
-    DagName extends string,
+    DagId extends string,
     Signatures,
     Branches,
     Operands extends readonly ChainGroup[],
@@ -34,13 +34,13 @@ export type ParseProblem<
         ? true
         : TooManyGroups<Operands> extends true
           ? true
-          : CheckBranches<DagName, Branches, Operands> extends infer BranchError
+          : CheckBranches<DagId, Branches, Operands> extends infer BranchError
             ? BranchError extends string
                 ? BranchError
                 : RegisterAll<
                         Signatures,
                         FlattenGroups<Operands>,
-                        DagName
+                        DagId
                     > extends infer Next
                   ? Next extends string
                       ? Next
@@ -52,7 +52,7 @@ export type ParseProblem<
  * `true` when the wiring set sequence is valid, otherwise the error message.
  */
 export type ChainProblem<
-    DagName extends string,
+    DagId extends string,
     Signatures,
     Edges,
     Branches,
@@ -69,14 +69,14 @@ export type ChainProblem<
             ? Cycle extends string
                 ? Cycle
                 : CheckBranches<
-                        DagName,
+                        DagId,
                         Branches,
                         Groups
                     > extends infer BranchError
                   ? BranchError extends string
                       ? BranchError
                       : FindBranchProblem<
-                              NextBranches<DagName, Branches, Groups>,
+                              NextBranches<DagId, Branches, Groups>,
                               Groups
                           > extends infer BranchProblem
                         ? BranchProblem extends string
@@ -84,7 +84,7 @@ export type ChainProblem<
                             : RegisterAll<
                                     Signatures,
                                     FlattenGroups<Groups>,
-                                    DagName
+                                    DagId
                                 > extends infer Next
                               ? Next extends string
                                   ? Next

@@ -320,7 +320,7 @@ ${c} >> ${a}`
         expect(leftward.steps.toReversed()).toStrictEqual(rightward.steps);
     });
 
-    it("includes the DAG name in every message", () => {
+    it("includes the DAG id in every message", () => {
         expect(() => named`${a} & ${b}`).toThrow(/"analytics-nightly"/u);
         expect(() => named`${a} >> ${[]}`).toThrow(/"analytics-nightly"/u);
         expect(() => named``).toThrow(/"analytics-nightly"/u);
@@ -708,17 +708,22 @@ describe("DAG.parse", () => {
         });
     });
 
-    it("accepts dashed and unicode task names", () => {
+    it("accepts dotted, dashed, and unicode task names", () => {
         const first = createTask("extract-daily", { fn: () => 0 });
         const second = createTask("ünïcode_task", { fn: () => 0 });
-        const dag = createDAG("etl").parse`${first} >> ${second}`;
+        const third = createTask("extract.users", { fn: () => 0 });
+        const dag = createDAG("etl").parse`${first} >> ${second} >> ${third}`;
 
         expect([...dag.tasks.keys()]).toStrictEqual([
             "extract-daily",
             "ünïcode_task",
+            "extract.users",
         ]);
         expect(downstreamNames(dag)["extract-daily"]).toStrictEqual([
             "ünïcode_task",
+        ]);
+        expect(downstreamNames(dag)["ünïcode_task"]).toStrictEqual([
+            "extract.users",
         ]);
     });
 

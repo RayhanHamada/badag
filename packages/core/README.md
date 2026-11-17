@@ -198,7 +198,7 @@ A task definition has no ID; the ID exists once the definition is registered as 
 - Every batch is transactional: a task name collision, duplicate task ID, self-edge, cross-DAG edge, or cycle leaves both the task registry and the edges unchanged.
 - A single wiring set registers without adding edges, which is how isolated tasks are declared: `dag.chain([extract, load])`.
 - `addDependency()`, `addDependencies()`, `setUpstream()`, `setDownstream()`, and `dependsOn()` also register definitions on first use.
-- The first argument is the task name. It is trimmed, must be unique inside the DAG, and is preserved as a literal type: `"  extract  "` becomes `"extract"`. Words may be joined with `-` or `_`; other separators are rejected.
+- The first argument is the task name. It is trimmed, must be unique inside the DAG, and is preserved as a literal type: `"  extract  "` becomes `"extract"`. Names follow Airflow's `task_id` convention: letters, numbers, `_`, `.`, and `-`, at most 250 characters; internal whitespace and other punctuation are rejected.
 - A regular task's `fn`, a sensor's `predicate`, a branch's `choose`, and a short-circuit's `condition` receive `{ id, name }` as their first argument. The DAG never calls them; `id` is assigned when the definition is registered.
 - `triggerRule` defaults to `all_success`; the SDK stores it for the scheduler and does not evaluate it.
 - `description` is an optional human-readable string stored verbatim on the definition and registered task.
@@ -787,7 +787,7 @@ dag.chain(duplicate); // error: task "a" already exists in DAG "etl"
 
 ### Validating a graph
 
-`validate()` returns every problem in the graph as a list, without throwing. The wiring methods reject malformed graphs as they run, so a DAG built only through them validates clean; the method is for graphs that reach a checkpoint later — a snapshot, a graph restored from storage, a half-built DAG before execution — and for the states wiring cannot see at the time of a call.
+`validate()` returns every problem in the graph as a list, without throwing. The DAG id is stored verbatim, so an id outside Airflow's convention surfaces here; the wiring methods reject malformed graphs as they run. The method is also for graphs that reach a checkpoint later — a snapshot, a graph restored from storage, a half-built DAG before execution — and for the states wiring cannot see at the time of a call.
 
 ```ts
 const route = branch("route", { branches: ["us", "eu"], choose: () => "us" });
@@ -806,10 +806,12 @@ dag.validate();
 
 A branch task declares the branches a scheduler may follow, so registering one alone leaves it temporarily unrouted; pairing it with the tasks that carry those names clears the finding. Checking `validate()` before execution catches exactly that.
 
-Every finding has a `code`, the `subjects` involved, and a `message` in the same wording the wiring methods throw. `subjects` names both endpoints for an edge, the traversal path (closing task repeated) for a cycle, and `[branch, declaredName]` for a branch finding. Branch and trigger findings name a declared branch or a DAG, not a task, so the field is called `subjects` rather than `tasks`. Findings are ordered edges, cycles, branch routing, then trigger findings.
+Every finding has a `code`, the `subjects` involved, and a `message` describing the problem. `subjects` holds the offending value for an invalid DAG id or task name, both endpoints for an edge, the traversal path (closing task repeated) for a cycle, and `[branch, declaredName]` for a branch or trigger finding. Branch and trigger findings name a declared branch or a DAG, not a task, so the field is called `subjects` rather than `tasks`. Findings are ordered identifiers, edges, cycles, branch routing, then trigger findings.
 
 | Code | Meaning |
 | --- | --- |
+| `invalid-dag-id` | The DAG's id does not follow Airflow's `dag_id` convention |
+| `invalid-task-name` | A registered task's name does not follow Airflow's `task_id` convention |
 | `cycle` | An edge joins a task back to one of its own ancestors |
 | `self-edge` | A task lists itself as an upstream or downstream task |
 | `foreign-edge` | An edge endpoint is not registered in this DAG |
@@ -822,14 +824,17 @@ Every finding has a `code`, the `subjects` involved, and a `message` in the same
 
 `duplicate-declared-branch` and `invalid-declared-branch` are reachable through the factories: `branches: ["us", "us"]` and a declared name like `""` or `"united states"` are both accepted by `branch()`, and neither can be satisfied by wiring. A name that is invalid is reported as `invalid-declared-branch` rather than additionally as `unrouted-branch`, because no task could ever carry it.
 
-An empty array means the graph is acyclic, internally consistent, and every branch routes exactly to its declared branches.
+`invalid-dag-id` is reachable through the public API, because `createDAG()` and `new DAG()` store the id verbatim; `validate()` is where the convention is checked. `invalid-task-name` is not reachable that way, because registration rejects an invalid task name first; it exists for graphs restored or assembled outside the public methods.
+
+An empty array means the DAG id and every task name follow Airflow's `validate_key` convention, the graph is acyclic, internally consistent, and every branch routes exactly to its declared branches.
 
 Reporting rules, each pinned by a test:
 
 - A self edge yields `self-edge` only, never an additional `cycle`, whether it is recorded on one side or both.
+- An identifier finding is one violation for the offending value, reported before every structural finding.
 - Each distinct cycle yields one finding, named by the path that closes it with the first task repeated. Cycles that share a task are separate findings.
 - An edge yields at most one finding: the downstream side and the upstream side report disjoint conditions on the same edge.
-- A mutual cross-DAG edge yields one finding per direction, so the two `tasks` lists differ.
+- A mutual cross-DAG edge yields one finding per direction, so the two `subjects` lists differ.
 - Foreign targets are reported but not traversed; their own edges belong to the DAG that owns them, so one graph's report never includes another's cycles.
 - A branch finding is per branch name, so a repeated declared name yields one finding, and an invalid declared name is reported once as `invalid-declared-branch`.
 - A trigger comparison trims both names, so `dagName: " daily "` inside DAG `"daily"` is still a self-trigger. Names that differ by case are distinct DAGs.
@@ -894,7 +899,7 @@ Readiness is runtime-owned. The SDK stores `triggerRule` but does not evaluate i
 
 ## Serialization
 
-`dag.toJSON()` returns a `DAGJson` snapshot: the DAG name, every task in registration order, and each task's edges as **task names**. Each entry is a `TaskJson`.
+`dag.toJSON()` returns a `DAGJson` snapshot: the `dagId`, every task in registration order, and each task's edges as **task names**. Each entry is a `TaskJson`.
 
 ```ts
 import { createDAG, task } from "@badag/core";
@@ -915,7 +920,7 @@ The resulting JSON structure:
 
 ```json
 {
-    "name": "etl",
+    "dagId": "etl",
     "tasks": [
         {
             "id": "…",
@@ -939,6 +944,7 @@ The resulting JSON structure:
 }
 ```
 
+- `dagId` is the Airflow-style DAG id supplied to `createDAG()`.
 - `id` is the registered task's task ID; `name` is unique within the DAG.
 - `kind` is always included and identifies the task factory that created the definition.
 - `triggerRule` is always included and defaults to `all_success`.
@@ -1028,8 +1034,8 @@ grouped.toJSON().tasks.map(({ name, upstream, downstream }) => ({
 
 | Export | Kind | Summary |
 | --- | --- | --- |
-| `createDAG` | function | `createDAG(name)` returns a `DAG`; keeps the literal name type, so `chain()` checks apply |
-| `DAG` | class | `name`, `tasks`, `getTask()`, `addDependency()`, `addDependencies()`, `chain()`, `parse`, `validate()`, `topologicalSort()`, `toJSON()` |
+| `createDAG` | function | `createDAG(dagId)` returns a `DAG`; keeps the literal DAG id type, so `chain()` checks apply |
+| `DAG` | class | `dagId`, `tasks`, `getTask()`, `addDependency()`, `addDependencies()`, `chain()`, `parse`, `validate()`, `topologicalSort()`, `toJSON()` |
 | `DAGTask` | type | Registered task handle; `id`, `name`, `kind`, `definition`, `description`, `config`, `triggerRule`, `upstream`, `downstream`, `setUpstream()`, `setDownstream()`, `dependsOn()`, `toJSON()`. Minted by `DAG`, not constructible by consumers |
 | `task` | function | Creates a regular task definition from a name and `{ fn }` input |
 | `sensor` | function | Creates a sensor definition storing a predicate and optional `pokeIntervalMs`; the SDK does not poll |
@@ -1063,7 +1069,7 @@ grouped.toJSON().tasks.map(({ name, upstream, downstream }) => ({
 | `DAGViolationCode` | type | Value union of `DAG_VIOLATION_ENUM` |
 | `DAG_VIOLATION_ENUM` | object | Enum-like map of the `validate()` finding codes |
 | `TaskJson` | type | Discriminated union of serialized task kinds; includes `kind` and kind-specific serializable fields |
-| `DAGJson` | interface | `{ name, tasks }` returned by `toJSON()` |
+| `DAGJson` | interface | `{ dagId, tasks }` returned by `toJSON()` |
 | `CreateTask` | type | Call signature of `task(name, input)` |
 | `TaskSchema` | type | Standard Schema accepted by `input`/`output` |
 | `TaskPayloadOf<S>` | type | Value `ctx.payload` carries for schema `S` |
@@ -1072,14 +1078,14 @@ grouped.toJSON().tasks.map(({ name, upstream, downstream }) => ({
 ## Types
 
 - Task callbacks receive `{ id, name }` first; `id` is assigned when the definition is registered, and factories trim surrounding whitespace and infer `ctx.name` as the resulting literal name.
-- Task names contain letters or numbers, with words joined by a single `-` or `_`; internal spaces, other punctuation, leading/trailing separators, and repeated separators are rejected.
+- Task names follow Airflow's `task_id` convention: letters, numbers, `_`, `.`, and `-`, at most 250 characters. Factories trim surrounding whitespace first; internal whitespace and other punctuation are rejected.
 - Every factory keeps the relevant callback signature on the definition, including its context parameter and return type; zero-argument callbacks remain assignable when the context is unused.
 - Factories add `triggerRule: "all_success"` when the input omits it; registered tasks expose the normalized value.
 - `description`, `config`, and `triggerRule` are accepted by every factory and stored on the definition and registered task.
 - `TaskFn` is the regular task callback, `(ctx: TaskContext<Name>) => unknown`; `PromiseLike` results are allowed and are not awaited by the SDK. Sensor, branch, and short-circuit callbacks use `MaybePromise` results.
 - Sensor, branch, and short-circuit callbacks receive the task context. A scheduler calls a sensor's `predicate` and repeats it according to `pokeIntervalMs`; a branch's `choose` returns the branch name(s); a short-circuit's `condition` returns the gate result.
 - `DAGTask` is exported as a type only; obtain handles from `DAG` methods rather than constructing them.
-- `createDAG(name)` returns a `DAG<Name>` instance with the literal name preserved, so `chain()` checks apply exactly as they do for a directly constructed `DAG`; the constructor stays public.
+- `createDAG(dagId)` returns a `DAG<DagId>` instance with the literal DAG id preserved, so `chain()` checks apply exactly as they do for a directly constructed `DAG`; the constructor stays public. DAG ids follow Airflow's `dag_id` convention: letters, numbers, `_`, `.`, and `-`, at most 250 characters, with no whitespace; ids are never trimmed and are reported by `validate()` rather than rejected at construction.
 - `DAGTask.kind` identifies the factory, and `DAGTask.definition` retains the original kind-specific definition, including callbacks that are not serialized.
 - `getTask()`, `topologicalSort()`, and `task.upstream` expose `DAGTask`. Narrow `task.definition.kind` to access the kind-specific behavior field and pass `{ id: task.id, name: task.name }` when invoking it.
 - `DAG` carries internal type parameters for the definitions and edges added through `chain()`. Annotating a value as plain `DAG` intentionally opts out of the compile-time checks above.
@@ -1092,9 +1098,9 @@ grouped.toJSON().tasks.map(({ name, upstream, downstream }) => ({
 
 | Message | Raised by |
 | --- | --- |
-| `DAG name cannot be empty` | `createDAG(name)` |
-| `Task name cannot be empty` | Any task factory after trimming |
-| `Task name "<name>" must use letters or numbers separated by "-" or "_"` | Any task factory and DAG registration |
+| `Task name cannot be empty` | Any task factory, and DAG registration for an empty name |
+| `Task name "<name>" must use letters, numbers, ".", "-", or "_"` | Any task factory and DAG registration |
+| `Task name "<name>" must be at most 250 characters` | Any task factory and DAG registration |
 | `Task "<name>" already exists in DAG "<dag>"` | `chain()` and edge methods when registering a definition |
 | `Task ID "<id>" already exists` | `chain()` and edge methods when task IDs collide |
 | `pokeIntervalMs must be greater than 0` | `sensor()` |

@@ -15,7 +15,7 @@ import type { DAGViolation } from "./violation";
  * graph a scheduler would.
  */
 export function findEdgeViolations(
-    dagName: string,
+    dagId: string,
     tasks: readonly DAGTask[],
     registered: ReadonlySet<DAGTask>
 ): DAGViolation[] {
@@ -35,7 +35,7 @@ export function findEdgeViolations(
             if (!registered.has(downstream)) {
                 violations.push({
                     code: DAG_VIOLATION_ENUM.ForeignEdge,
-                    message: `Edge "${task.name}" -> "${downstream.name}" crosses DAG boundaries; "${downstream.name}" is not registered in DAG "${dagName}"`,
+                    message: `Edge "${task.name}" -> "${downstream.name}" crosses DAG boundaries; "${downstream.name}" is not registered in DAG "${dagId}"`,
                     subjects: [task.name, downstream.name],
                 });
                 continue;
@@ -68,7 +68,7 @@ export function findEdgeViolations(
             if (!registered.has(upstream)) {
                 violations.push({
                     code: DAG_VIOLATION_ENUM.ForeignEdge,
-                    message: `Edge "${upstream.name}" -> "${task.name}" crosses DAG boundaries; "${upstream.name}" is not registered in DAG "${dagName}"`,
+                    message: `Edge "${upstream.name}" -> "${task.name}" crosses DAG boundaries; "${upstream.name}" is not registered in DAG "${dagId}"`,
                     subjects: [upstream.name, task.name],
                 });
                 continue;

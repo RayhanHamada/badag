@@ -4,7 +4,9 @@ A TypeScript SDK for declaring task graphs, wiring dependencies, and validating 
 
 ## Language
 
-**DAG**: A named directed acyclic graph whose nodes are tasks and whose edges are execution dependencies. _Avoid_: workflow, pipeline
+**DAG**: A directed acyclic graph whose nodes are tasks and whose edges are execution dependencies. _Avoid_: workflow, pipeline
+
+**DAG ID**: The identifier of a DAG, following Airflow's `dag_id` convention: letters, numbers, underscores, dots, and dashes only, at most 250 characters, with no whitespace. Unlike a task name, an id is never trimmed, and a deviation is reported by `DAG.validate()` rather than rejected at construction. _Avoid_: DAG name, dagName, workflow id
 
 **Task definition**: A name, behavior, and optional metadata declared before the task belongs to any DAG. _Avoid_: task spec, task template, unregistered task
 
@@ -42,7 +44,7 @@ A TypeScript SDK for declaring task graphs, wiring dependencies, and validating 
 
 **Unrouted branch**: The violation for a declared branch the branch task does not route to. A branch task is unrouted until a single wiring step routes it to exactly its declared branches, so a freshly registered branch is expected to be unrouted. _Avoid_: missing branch, incomplete branch, dangling branch
 
-**Task name**: The unique human-readable name of a task within one DAG; uniqueness is scoped to that DAG. _Avoid_: label, slug, key
+**Task name**: The unique human-readable name of a task within one DAG; uniqueness is scoped to that DAG. Names follow Airflow's `task_id` convention: letters, numbers, underscores, dots, and dashes only, at most 250 characters, after surrounding whitespace is trimmed. _Avoid_: label, slug, key
 
 **Task ID**: An identifier derived from a task definition's name and behavior source; metadata does not affect it, and the same name and behavior produce the same task ID in every DAG within one build. A shared task ID does not prove equal callback behavior: captured values are invisible to the behavior source. _Avoid_: content hash, content id, UUID
 
@@ -76,6 +78,10 @@ A TypeScript SDK for declaring task graphs, wiring dependencies, and validating 
 
 **Duplicate declared branch**: The violation for a branch task that lists the same declared branch name more than once. A repeated name can only ever be routed to by one task, so the second listing states nothing. _Avoid_: repeated branch, duplicate branch
 
+**Invalid DAG id**: The violation for a DAG id that does not follow Airflow's `dag_id` convention. Construction stores the id verbatim, so `DAG.validate()` reports it. _Avoid_: bad DAG id, malformed DAG id
+
 **Invalid declared branch**: The violation for a declared branch name that could never be a task name, such as an empty or whitespace-only name. No wiring can satisfy it, so it is reported as invalid rather than as unrouted. _Avoid_: bad branch name, malformed branch
+
+**Invalid task name**: The violation for a registered task whose name does not follow Airflow's `task_id` convention. Registration rejects such names, so the finding only appears for graphs restored or assembled outside the public methods. _Avoid_: bad task name, malformed task name
 
 **Self trigger**: The violation for a trigger task whose target is the DAG that contains it. The declaration is legal, but running it would start a second copy of the same graph, so no scheduler can execute it. _Avoid_: recursive trigger, trigger loop

@@ -4,6 +4,7 @@ import {
     branch,
     createDAG,
     DAG,
+    DAG_VIOLATION_ENUM,
     delay,
     sensor,
     shortCircuit,
@@ -169,6 +170,7 @@ describe("public task types", () => {
         const [taskJson] = json.tasks;
 
         expectTypeOf(json).toEqualTypeOf<DAGJson>();
+        expectTypeOf(json.dagId).toEqualTypeOf<string>();
         expectTypeOf(taskJson).toEqualTypeOf<TaskJson>();
         expectTypeOf(dag.getTask("report")?.toJSON()).toEqualTypeOf<
             TaskJson | undefined
@@ -181,7 +183,7 @@ describe("public task types", () => {
     it("types DAG query results", () => {
         const dag = createDAG("etl");
 
-        expectTypeOf(dag.name).toEqualTypeOf<"etl">();
+        expectTypeOf(dag.dagId).toEqualTypeOf<"etl">();
         expectTypeOf(dag.tasks).toEqualTypeOf<ReadonlyMap<string, DAGTask>>();
         expectTypeOf(dag.topologicalSort()).toEqualTypeOf<DAGTask[]>();
     });
@@ -191,12 +193,21 @@ describe("public task types", () => {
 
         expect(dag).toBeInstanceOf(DAG);
         expectTypeOf(dag).toEqualTypeOf<DAG<"etl">>();
-        expectTypeOf(dag.name).toEqualTypeOf<"etl">();
+        expectTypeOf(dag.dagId).toEqualTypeOf<"etl">();
         expectTypeOf(dag.getTask("extract")).toEqualTypeOf<
             DAGTask<"extract"> | undefined
         >();
-        expect(dag.name).toBe("etl");
-        expect(() => createDAG("")).toThrow("DAG name cannot be empty");
+        expect(dag.dagId).toBe("etl");
+    });
+
+    it("reports an invalid DAG id through validate", () => {
+        expect(createDAG("").validate()).toStrictEqual([
+            {
+                code: DAG_VIOLATION_ENUM.InvalidDagId,
+                message: "DAG id cannot be empty",
+                subjects: [""],
+            },
+        ]);
     });
 
     it("accepts context callbacks on definitions and handles", () => {

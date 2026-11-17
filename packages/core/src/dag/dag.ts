@@ -33,37 +33,39 @@ type EdgeStep = readonly [readonly DAGTask[], readonly DAGTask[]];
 /**
  * An Airflow-inspired directed acyclic graph.
  *
- * `DagName`, `Signatures`, `Edges`, and `Branches` are compile-time
+ * `DagId`, `Signatures`, `Edges`, and `Branches` are compile-time
  * bookkeeping for `chain()`: the returned DAG carries the registrations,
  * edges, and declared branch sets added by the call. Keep calls fluent (or
  * keep the returned value) for static validation; the runtime checks cover
  * every wiring path.
  */
 export class DAG<
-    DagName extends string = string,
+    DagId extends string = string,
     Signatures = Record<never, never>,
     Edges = Record<never, never>,
     Branches = Record<never, never>,
 > {
-    readonly #name: DagName;
+    readonly #dagId: DagId;
     // Same task objects, two indexes: name drives public lookup and order;
     // task ID drives identity and duplicate detection.
     readonly #tasks = new Map<TaskNameIndex, DAGTask>();
     readonly #tasksById = new Map<TaskIdIndex, DAGTask>();
 
-    constructor(name: DagName) {
-        if (!name.trim()) {
-            throw new Error("DAG name cannot be empty");
-        }
-
-        this.#name = name;
+    /**
+     * Store the DAG id verbatim.
+     *
+     * The id is not rejected here; `validate()` reports an id that does not
+     * follow Airflow's `dag_id` convention.
+     */
+    constructor(dagId: DagId) {
+        this.#dagId = dagId;
     }
 
     /**
-     * Name supplied when the DAG was constructed.
+     * Airflow-style DAG id supplied when the DAG was constructed.
      */
-    get name(): DagName {
-        return this.#name;
+    get dagId(): DagId {
+        return this.#dagId;
     }
 
     /**
@@ -151,19 +153,19 @@ export class DAG<
     chain<const Groups extends readonly TaskOrTasks[]>(
         ...groups: Groups &
             (ChainProblem<
-                DagName,
+                DagId,
                 Signatures,
                 Edges,
                 Branches,
                 Groups
             > extends true
                 ? unknown
-                : ChainProblem<DagName, Signatures, Edges, Branches, Groups>)
+                : ChainProblem<DagId, Signatures, Edges, Branches, Groups>)
     ): DAG<
-        DagName,
-        NextSignatures<DagName, Signatures, Groups>,
+        DagId,
+        NextSignatures<DagId, Signatures, Groups>,
         NextEdges<Edges, Groups>,
-        NextBranches<DagName, Branches, Groups>
+        NextBranches<DagId, Branches, Groups>
     >;
     chain(...groups: TaskOrTasks[]): this {
         const normalized = groups.map((group) => normalizeTasks(group));
@@ -223,21 +225,21 @@ export class DAG<
     parse<const Operands extends readonly WiringOperand[]>(
         segments: TemplateStringsArray,
         ...operands: Operands &
-            (ParseProblem<DagName, Signatures, Branches, Operands> extends true
+            (ParseProblem<DagId, Signatures, Branches, Operands> extends true
                 ? unknown
-                : ParseProblem<DagName, Signatures, Branches, Operands>)
+                : ParseProblem<DagId, Signatures, Branches, Operands>)
     ): DAG<
-        DagName,
-        NextSignatures<DagName, Signatures, Operands>,
+        DagId,
+        NextSignatures<DagId, Signatures, Operands>,
         Edges,
-        NextBranches<DagName, Branches, Operands>
+        NextBranches<DagId, Branches, Operands>
     >;
     parse(
         segments: TemplateStringsArray,
         ...operands: readonly WiringOperand[]
     ): this {
         const { steps, tasks } = parseWiringExpression(
-            this.#name,
+            this.#dagId,
             segments,
             operands
         );
@@ -278,13 +280,14 @@ export class DAG<
      * the time of a call: a branch task registered alone declares the branches
      * it must route to, and only pairing it with those tasks satisfies that.
      *
-     * Findings are ordered edges, cycles, then branch routing, and `tasks`
-     * names the tasks involved. An empty array means the graph is acyclic,
-     * internally consistent, and every branch routes exactly to its declared
-     * branches.
+     * Findings are ordered identifiers, edges, cycles, branch routing, then
+     * triggers, and `subjects` names the values involved. An empty array means
+     * the DAG id and every task name follow Airflow's `validate_key`
+     * convention, the graph is acyclic, internally consistent, and every
+     * branch routes exactly to its declared branches.
      */
     validate(): readonly DAGViolation[] {
-        return findViolations(this.#name, [...this.#tasks.values()]);
+        return findViolations(this.#dagId, [...this.#tasks.values()]);
     }
 
     /**
@@ -292,19 +295,20 @@ export class DAG<
      * Throws if the graph is cyclic.
      */
     topologicalSort(): DAGTask[] {
-        return sortTopologically(this.#tasks, this.#name);
+        return sortTopologically(this.#tasks, this.#dagId);
     }
 
     /**
      * Return a JSON-safe snapshot of the graph.
      *
-     * Tasks keep their task IDs, names, kinds, descriptions, trigger rules,
-     * configs, and serializable kind-specific fields; edges are listed by task
-     * name. Functions are omitted. `JSON.stringify(dag)` calls this method, so
-     * `config` values must be JSON-serializable for that conversion.
+     * The snapshot keeps the DAG id; tasks keep their task IDs, names, kinds,
+     * descriptions, trigger rules, configs, and serializable kind-specific
+     * fields; edges are listed by task name. Functions are omitted.
+     * `JSON.stringify(dag)` calls this method, so `config` values must be
+     * JSON-serializable for that conversion.
      */
     toJSON(): DAGJson {
-        return serializeDAG(this.#name, [...this.#tasks.values()]);
+        return serializeDAG(this.#dagId, [...this.#tasks.values()]);
     }
 
     #assertHandleBelongs(task: TaskLike): void {
@@ -359,7 +363,7 @@ export class DAG<
                 pendingNames.has(candidate.name)
             ) {
                 throw new Error(
-                    `Task "${candidate.name}" already exists in DAG "${this.#name}"`
+                    `Task "${candidate.name}" already exists in DAG "${this.#dagId}"`
                 );
             }
 
@@ -394,7 +398,7 @@ export class DAG<
         }
 
         throw new Error(
-            `Task "${candidate.name}" in DAG "${this.#name}" has the same callback source as an existing definition but a different callback instance; captured values are not part of task identity, so a duplicate registration would silently drop the task. Reuse the same callback or give the task a distinct name`
+            `Task "${candidate.name}" in DAG "${this.#dagId}" has the same callback source as an existing definition but a different callback instance; captured values are not part of task identity, so a duplicate registration would silently drop the task. Reuse the same callback or give the task a distinct name`
         );
     }
 
@@ -419,7 +423,7 @@ export class DAG<
 
         if (registered === undefined) {
             throw new Error(
-                `Task "${task.name}" is not registered in DAG "${this.#name}"`
+                `Task "${task.name}" is not registered in DAG "${this.#dagId}"`
             );
         }
 
@@ -530,9 +534,10 @@ export class DAG<
 /**
  * Create a DAG without `new`.
  *
- * Keeps the literal name in the returned type, so `chain()` checks apply
- * exactly as they do on a constructed `DAG`.
+ * Keeps the literal DAG id in the returned type, so `chain()` checks apply
+ * exactly as they do on a constructed `DAG`. The id follows Airflow's
+ * `dag_id` convention; `validate()` reports an id that does not.
  */
-export const createDAG = <const DagName extends string>(
-    name: DagName
-): DAG<DagName> => new DAG(name);
+export const createDAG = <const DagId extends string>(
+    dagId: DagId
+): DAG<DagId> => new DAG(dagId);

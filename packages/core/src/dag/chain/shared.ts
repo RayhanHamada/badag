@@ -115,11 +115,11 @@ export type IsBroadFn<Fn extends TaskFn<never>> = TaskFn extends Fn
     ? true
     : false;
 
-export type DagLabel<DagName extends string> = string extends DagName
+export type DagIdLabel<DagId extends string> = string extends DagId
     ? "this DAG"
-    : DagName;
+    : DagId;
 
 export type DuplicateTaskMessage<
-    DagName extends string,
+    DagId extends string,
     TaskName extends string,
-> = `Task "${TaskName}" already exists in DAG "${DagLabel<DagName>}"`;
+> = `Task "${TaskName}" already exists in DAG "${DagIdLabel<DagId>}"`;

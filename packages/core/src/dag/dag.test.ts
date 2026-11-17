@@ -6,6 +6,7 @@ import { TASK_KIND_ENUM } from "../task/kind";
 import { DEFAULT_TRIGGER_RULE, TRIGGER_RULE_ENUM } from "../task/trigger-rule";
 import type { TaskContext, TaskFn } from "../task/types/base";
 import type { TaskParamInput, TaskParamOutput } from "../task/types/task";
+import { DAG_VIOLATION_ENUM } from "./audit/violation";
 import { createDAG, DAG } from "./dag";
 import { crossDownstream, DAGTask } from "./registered-task";
 
@@ -141,19 +142,43 @@ describe("task definitions", () => {
         expect(handle.description).toBeUndefined();
     });
 
-    it("rejects task names without dash or underscore separators", () => {
+    it("accepts Airflow task names with dots, separators, and unicode", () => {
         for (const name of [
-            "my task",
             "my.task",
             "my--task",
+            "my__task",
             "-task",
             "task-",
-            "task__name",
+            "_task",
+            "task.",
+            "extract.users_daily-v2",
+            "ünïcode_task",
+        ]) {
+            expect(() => createTask(name, { fn: () => 0 })).not.toThrow();
+        }
+    });
+
+    it("rejects task names outside the Airflow task_id convention", () => {
+        for (const name of [
+            "my task",
+            "my/task",
+            "my:task",
+            "task!",
+            "task,",
         ]) {
             expect(() => createTask(name, { fn: () => 0 })).toThrow(
-                /must use letters or numbers separated by "-" or "_"/u
+                /must use letters, numbers, "\.", "-", or "_"/u
             );
         }
+    });
+
+    it("caps task names at Airflow's 250-character limit", () => {
+        expect(() =>
+            createTask("a".repeat(250), { fn: () => 0 })
+        ).not.toThrow();
+        expect(() => createTask("a".repeat(251), { fn: () => 0 })).toThrow(
+            /must be at most 250 characters/u
+        );
     });
 
     it("rejects empty task names after trimming", () => {
@@ -167,7 +192,13 @@ describe("task definitions", () => {
 
         expect(() =>
             createDAG("etl").chain({ ...definition, name: "extract task" })
-        ).toThrow(/must use letters or numbers separated by "-" or "_"/u);
+        ).toThrow(/must use letters, numbers, "\.", "-", or "_"/u);
+        expect(() =>
+            createDAG("etl").chain({
+                ...definition,
+                name: "a".repeat(251),
+            })
+        ).toThrow(/must be at most 250 characters/u);
     });
 
     it("defaults the trigger rule to all_success", () => {
@@ -336,21 +367,66 @@ describe("async task functions", () => {
 });
 
 describe("DAG construction", () => {
-    it("keeps the name verbatim", () => {
-        expect(createDAG("etl").name).toBe("etl");
-        expect(createDAG("  etl  ").name).toBe("  etl  ");
+    it("keeps a valid Airflow DAG id verbatim", () => {
+        expect(createDAG("etl").dagId).toBe("etl");
+        expect(createDAG("daily-pricing.v2_beta").dagId).toBe(
+            "daily-pricing.v2_beta"
+        );
     });
 
-    it("rejects empty and whitespace-only names", () => {
-        expect(() => createDAG("")).toThrow("DAG name cannot be empty");
-        expect(() => createDAG("   ")).toThrow("DAG name cannot be empty");
+    it("stores empty and whitespace-only DAG ids verbatim", () => {
+        expect(createDAG("").dagId).toBe("");
+        expect(createDAG("   ").dagId).toBe("   ");
+    });
+
+    it("reports empty and whitespace-only DAG ids through validate()", () => {
+        for (const dagId of ["", "   "]) {
+            expect(createDAG(dagId).validate()).toStrictEqual([
+                {
+                    code: DAG_VIOLATION_ENUM.InvalidDagId,
+                    message: "DAG id cannot be empty",
+                    subjects: [dagId],
+                },
+            ]);
+        }
+    });
+
+    it("reports ids outside the Airflow dag_id convention", () => {
+        for (const dagId of [
+            "  etl  ",
+            "etl pricing",
+            "etl/pricing",
+            "etl*",
+            "etl?run",
+        ]) {
+            expect(createDAG(dagId).validate()).toStrictEqual([
+                {
+                    code: DAG_VIOLATION_ENUM.InvalidDagId,
+                    message: `DAG id "${dagId}" must use letters, numbers, ".", "-", or "_"`,
+                    subjects: [dagId],
+                },
+            ]);
+        }
+    });
+
+    it("reports DAG ids longer than 250 characters", () => {
+        const dagId = "a".repeat(251);
+
+        expect(createDAG(dagId).validate()).toStrictEqual([
+            {
+                code: DAG_VIOLATION_ENUM.InvalidDagId,
+                message: `DAG id "${dagId}" must be at most 250 characters`,
+                subjects: [dagId],
+            },
+        ]);
+        expect(createDAG("a".repeat(250)).validate()).toStrictEqual([]);
     });
 
     it("builds the same DAG through createDAG", () => {
         const dag = createDAG("etl");
 
         expect(dag).toBeInstanceOf(DAG);
-        expect(dag.name).toBe("etl");
+        expect(dag.dagId).toBe("etl");
         expectTypeOf(dag).toEqualTypeOf<DAG<"etl">>();
         expectTypeOf(dag.getTask("extract")).toEqualTypeOf<
             DAGTask<"extract"> | undefined
@@ -362,11 +438,6 @@ describe("DAG construction", () => {
         expect(dag.topologicalSort().map((task) => task.name)).toStrictEqual([
             "extract",
         ]);
-    });
-
-    it("rejects empty and whitespace-only names through createDAG", () => {
-        expect(() => createDAG("")).toThrow("DAG name cannot be empty");
-        expect(() => createDAG("   ")).toThrow("DAG name cannot be empty");
     });
 });
 
@@ -942,7 +1013,7 @@ describe("DAG ordering", () => {
 describe("JSON representation", () => {
     it("returns an empty task list for an empty DAG", () => {
         expect(createDAG("empty").toJSON()).toStrictEqual({
-            name: "empty",
+            dagId: "empty",
             tasks: [],
         });
     });
@@ -968,7 +1039,7 @@ describe("JSON representation", () => {
         transform.setDownstream(load);
 
         expect(dag.toJSON()).toStrictEqual({
-            name: "etl",
+            dagId: "etl",
             tasks: [
                 {
                     id: extract.id,
@@ -1057,7 +1128,7 @@ describe("JSON representation", () => {
             buildComplexDag();
 
         expect(dag.toJSON()).toStrictEqual({
-            name: "complex",
+            dagId: "complex",
             tasks: [
                 {
                     id: extract.id,

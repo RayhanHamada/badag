@@ -34,7 +34,7 @@ interface RegistrationError<Message extends string> {
  * already registered with an equal signature is reused; a different signature
  * is the duplicate error.
  */
-type RegisterTask<DagName extends string, Signatures, Task extends ChainTask> =
+type RegisterTask<DagId extends string, Signatures, Task extends ChainTask> =
     IsBroadFn<TaskFnOf<Task>> extends true
         ? RegistrationOk<Signatures>
         : TaskNameOf<Task> extends infer TaskName extends string
@@ -43,7 +43,7 @@ type RegisterTask<DagName extends string, Signatures, Task extends ChainTask> =
                   ? RegistrationOk<Signatures>
                   : Equal<TaskFnOf<Task>, Signatures[TaskName]> extends true
                     ? RegistrationOk<Signatures>
-                    : RegistrationError<DuplicateTaskMessage<DagName, TaskName>>
+                    : RegistrationError<DuplicateTaskMessage<DagId, TaskName>>
               : RegistrationOk<
                     Signatures & {
                         readonly [Name in TaskName]: TaskFnOf<Task>;
@@ -55,23 +55,23 @@ type RegisterTask<DagName extends string, Signatures, Task extends ChainTask> =
 export type RegisterAll<
     Signatures,
     Tasks extends readonly ChainTask[],
-    DagName extends string,
+    DagId extends string,
 > = Tasks extends readonly [
     infer Task extends ChainTask,
     ...infer Rest extends readonly ChainTask[],
 ]
-    ? RegisterTask<DagName, Signatures, Task> extends {
+    ? RegisterTask<DagId, Signatures, Task> extends {
           readonly error: infer Error;
           readonly signatures: infer Next;
       }
         ? [Error] extends [never]
-            ? RegisterAll<Next, Rest, DagName>
+            ? RegisterAll<Next, Rest, DagId>
             : Error
         : never
     : Signatures;
 
 export type NextSignatures<
-    DagName extends string,
+    DagId extends string,
     Signatures,
     Groups extends readonly ChainGroup[],
 > =
@@ -82,7 +82,7 @@ export type NextSignatures<
           : RegisterAll<
                   Signatures,
                   FlattenGroups<Groups>,
-                  DagName
+                  DagId
               > extends infer Next
             ? Next extends string
                 ? Signatures

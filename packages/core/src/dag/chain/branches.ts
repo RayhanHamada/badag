@@ -46,7 +46,7 @@ type SameBranchSet<Left, Right> = Left extends readonly string[]
 
 /** Register every declared branch set in a flattened chain. */
 type RegisterBranches<
-    DagName extends string,
+    DagId extends string,
     Branches,
     Tasks extends readonly ChainTask[],
 > = Tasks extends readonly [
@@ -55,25 +55,25 @@ type RegisterBranches<
 ]
     ? DeclaredBranchesOf<Task> extends infer Declared
         ? [Declared] extends [never]
-            ? RegisterBranches<DagName, Branches, Rest>
+            ? RegisterBranches<DagId, Branches, Rest>
             : TaskNameOf<Task> extends infer TaskName extends string
               ? TaskName extends keyof Branches
                   ? SameBranchSet<Branches[TaskName], Declared> extends true
-                      ? RegisterBranches<DagName, Branches, Rest>
-                      : DuplicateTaskMessage<DagName, TaskName>
+                      ? RegisterBranches<DagId, Branches, Rest>
+                      : DuplicateTaskMessage<DagId, TaskName>
                   : RegisterBranches<
-                        DagName,
+                        DagId,
                         Branches & {
                             readonly [Name in TaskName]: Declared;
                         },
                         Rest
                     >
-              : RegisterBranches<DagName, Branches, Rest>
+              : RegisterBranches<DagId, Branches, Rest>
         : never
     : Branches;
 
 export type NextBranches<
-    DagName extends string,
+    DagId extends string,
     Branches,
     Groups extends readonly ChainGroup[],
 > =
@@ -82,7 +82,7 @@ export type NextBranches<
         : TooManyGroups<Groups> extends true
           ? Branches
           : RegisterBranches<
-                  DagName,
+                  DagId,
                   Branches,
                   FlattenGroups<Groups>
               > extends infer Next
@@ -148,15 +148,11 @@ export type FindBranchProblem<
 
 /** The first problem registering a chain's declared branch sets, or `true`. */
 export type CheckBranches<
-    DagName extends string,
+    DagId extends string,
     Branches,
     Groups extends readonly ChainGroup[],
 > =
-    RegisterBranches<
-        DagName,
-        Branches,
-        FlattenGroups<Groups>
-    > extends infer Next
+    RegisterBranches<DagId, Branches, FlattenGroups<Groups>> extends infer Next
         ? Next extends string
             ? Next
             : true

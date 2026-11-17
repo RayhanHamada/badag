@@ -107,9 +107,9 @@ export type TaskJson =
  */
 export interface DAGJson {
     /**
-     * Name of the DAG.
+     * Airflow-style id of the DAG.
      */
-    readonly name: string;
+    readonly dagId: string;
     /**
      * Registered tasks in registration order.
      */
@@ -207,9 +207,12 @@ export function serializeTask(task: DAGTask): TaskJson {
  * `DAG.toJSON()`, so `config` values must be JSON-serializable for that
  * conversion.
  */
-export function serializeDAG(name: string, tasks: readonly DAGTask[]): DAGJson {
+export function serializeDAG(
+    dagId: string,
+    tasks: readonly DAGTask[]
+): DAGJson {
     return {
-        name,
+        dagId,
         tasks: tasks.map((task) => serializeTask(task)),
     };
 }

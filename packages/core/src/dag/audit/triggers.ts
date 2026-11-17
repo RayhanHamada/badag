@@ -10,15 +10,15 @@ import type { DAGViolation } from "./violation";
  *
  * A trigger task names a target DAG, so a task pointing at its own DAG starts
  * a copy of itself; the SDK does not run DAGs, but no scheduler can execute
- * that request. The target name is compared after trimming, matching how
- * `createDAG` treats a name.
+ * that request. The target id is compared after trimming, while the
+ * containing DAG id is validated without surrounding whitespace.
  */
 export function findTriggerViolations(
-    dagName: string,
+    dagId: string,
     tasks: readonly DAGTask[]
 ): DAGViolation[] {
     const violations: DAGViolation[] = [];
-    const target = dagName.trim();
+    const target = dagId.trim();
 
     for (const task of tasks) {
         const { definition } = task;

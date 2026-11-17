@@ -21,7 +21,7 @@ interface Frame {
  * findings, because each closes on its own back edge.
  */
 export function findCycleViolations(
-    dagName: string,
+    dagId: string,
     tasks: readonly DAGTask[],
     registered: ReadonlySet<DAGTask>
 ): DAGViolation[] {
@@ -87,7 +87,7 @@ export function findCycleViolations(
 
             violations.push({
                 code: DAG_VIOLATION_ENUM.Cycle,
-                message: `DAG "${dagName}" contains a cycle: ${quoteNames(
+                message: `DAG "${dagId}" contains a cycle: ${quoteNames(
                     cycle.map((task) => task.name)
                 )}`,
                 subjects: cycle.map((task) => task.name),

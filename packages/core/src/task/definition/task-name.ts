@@ -1,36 +1,54 @@
+import { AIRFLOW_KEY_MAX_LENGTH, AIRFLOW_KEY_PATTERN } from "../../airflow-key";
 import type { TrimTaskName } from "../types/base";
 
-/** Task names are alphanumeric words joined by single dashes or underscores. */
-const TASK_NAME_PATTERN = /^[\p{L}\p{N}]+(?:[-_][\p{L}\p{N}]+)*$/u;
+/**
+ * Task names follow Airflow's `task_id` convention.
+ *
+ * Airflow's `validate_key` accepts Unicode word characters, dots, and dashes,
+ * and caps the key at 250 characters.
+ */
 
-/** Whether an already-trimmed name is a valid task name. */
+/** The problem with an already-trimmed task name, or `undefined` if valid. */
+export function taskNameError(name: string): string | undefined {
+    if (!name.trim()) {
+        return "Task name cannot be empty";
+    }
+
+    if (name.length > AIRFLOW_KEY_MAX_LENGTH) {
+        return `Task name "${name}" must be at most ${AIRFLOW_KEY_MAX_LENGTH} characters`;
+    }
+
+    if (!AIRFLOW_KEY_PATTERN.test(name)) {
+        return `Task name "${name}" must use letters, numbers, ".", "-", or "_"`;
+    }
+
+    return undefined;
+}
+
+/** Whether an already-trimmed name follows Airflow's task name convention. */
 export function isTaskName(name: string): boolean {
-    return TASK_NAME_PATTERN.test(name);
+    return taskNameError(name) === undefined;
 }
 
 /** Validate an already-trimmed task name. */
 export function assertTaskName(name: string): void {
-    if (!isTaskName(name)) {
-        throw new Error(
-            `Task name "${name}" must use letters or numbers separated by "-" or "_"`
-        );
+    const error = taskNameError(name);
+
+    if (error !== undefined) {
+        throw new Error(error);
     }
 }
 
 /**
  * Trim surrounding whitespace and validate a task name.
  *
- * Internal whitespace and other punctuation are rejected; words may be joined
- * with a dash or underscore.
+ * The trimmed name follows Airflow's `task_id` convention: Unicode letters and
+ * numbers, underscores, dots, and dashes, at most 250 characters.
  */
 export function normalizeTaskName<Name extends string>(
     name: Name
 ): TrimTaskName<Name> {
     const trimmed = name.trim();
-
-    if (!trimmed) {
-        throw new Error("Task name cannot be empty");
-    }
 
     assertTaskName(trimmed);
 

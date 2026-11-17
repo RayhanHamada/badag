@@ -65,6 +65,14 @@ function injectEdge(from: DAGTask, to: DAGTask): void {
     stateOf(to).upstream.add(from);
 }
 
+/**
+ * Rewrite a registered task's name without re-running registration, so the
+ * graph is exactly what `validate()` must audit.
+ */
+function renameTask(task: DAGTask, name: string): void {
+    Object.defineProperty(task, "name", { value: name });
+}
+
 describe("validate: graphs built through the wiring API", () => {
     it("reports nothing for an empty DAG", () => {
         expect(createDAG("empty").validate()).toStrictEqual([]);
@@ -241,6 +249,95 @@ describe("validate: graphs built through the wiring API", () => {
         expect(
             [...requireTask(dag, "a").downstream].map((task) => task.name)
         ).toStrictEqual(["b"]);
+    });
+});
+
+describe("validate: DAG id", () => {
+    it("reports an empty id", () => {
+        expect(createDAG("").validate()).toStrictEqual([
+            {
+                code: DAG_VIOLATION_ENUM.InvalidDagId,
+                message: "DAG id cannot be empty",
+                subjects: [""],
+            },
+        ]);
+    });
+
+    it("reports a character outside Airflow's dag_id convention", () => {
+        expect(createDAG("daily etl").validate()).toStrictEqual([
+            {
+                code: DAG_VIOLATION_ENUM.InvalidDagId,
+                message:
+                    'DAG id "daily etl" must use letters, numbers, ".", "-", or "_"',
+                subjects: ["daily etl"],
+            },
+        ]);
+    });
+
+    it("reports an id longer than Airflow's limit", () => {
+        const dagId = "a".repeat(251);
+
+        expect(createDAG(dagId).validate()).toStrictEqual([
+            {
+                code: DAG_VIOLATION_ENUM.InvalidDagId,
+                message: `DAG id "${dagId}" must be at most 250 characters`,
+                subjects: [dagId],
+            },
+        ]);
+    });
+
+    it("reports nothing for dots, dashes, underscores, and unicode", () => {
+        expect(createDAG("ünïcode.dag-daily_1").validate()).toStrictEqual([]);
+    });
+});
+
+describe("validate: task names", () => {
+    it("reports a name outside Airflow's task_id convention", () => {
+        const dag = createDAG("names").chain(regular("extract"));
+        renameTask(requireTask(dag, "extract"), "extract users");
+
+        expect(dag.validate()).toStrictEqual([
+            {
+                code: DAG_VIOLATION_ENUM.InvalidTaskName,
+                message:
+                    'Task name "extract users" must use letters, numbers, ".", "-", or "_"',
+                subjects: ["extract users"],
+            },
+        ]);
+    });
+
+    it("reports a name longer than Airflow's limit", () => {
+        const name = "a".repeat(251);
+        const dag = createDAG("names").chain(regular("extract"));
+        renameTask(requireTask(dag, "extract"), name);
+
+        expect(dag.validate()).toStrictEqual([
+            {
+                code: DAG_VIOLATION_ENUM.InvalidTaskName,
+                message: `Task name "${name}" must be at most 250 characters`,
+                subjects: [name],
+            },
+        ]);
+    });
+
+    it("reports nothing for dots, repeated separators, and unicode", () => {
+        const dag = createDAG("names").chain([
+            regular("extract.users"),
+            regular("extract--daily"),
+            regular("ünïcode_task"),
+        ]);
+
+        expect(dag.validate()).toStrictEqual([]);
+    });
+
+    it("reports the DAG id before task names", () => {
+        const dag = createDAG("bad id").chain(regular("extract"));
+        renameTask(requireTask(dag, "extract"), "extract users");
+
+        expect(codes(dag.validate())).toStrictEqual([
+            "invalid-dag-id",
+            "invalid-task-name",
+        ]);
     });
 });
 
@@ -784,6 +881,23 @@ describe("validate: declared branch names", () => {
         ]);
     });
 
+    it("reports a declared name longer than Airflow's limit", () => {
+        const longName = "a".repeat(251);
+        const names: string[] = [longName];
+
+        const dag = createDAG("invalid").chain([
+            branch("route", { branches: names, choose: () => names[0] ?? "" }),
+        ]);
+
+        expect(dag.validate()).toStrictEqual([
+            {
+                code: DAG_VIOLATION_ENUM.InvalidDeclaredBranch,
+                message: `Branch "route" declares "${longName}", which is not a valid task name`,
+                subjects: ["route", longName],
+            },
+        ]);
+    });
+
     it("does not also report an invalid name as unrouted", () => {
         const names: string[] = [""];
 
@@ -1024,7 +1138,7 @@ describe("validate: reporting contract", () => {
         }
     });
 
-    it("keeps messages free of the DAG name for task-local findings", () => {
+    it("keeps messages free of the DAG id for task-local findings", () => {
         const dag = createDAG("pending").chain([route(["us"])]);
 
         expect(dag.validate()[0]?.message).toBe(
@@ -1032,7 +1146,7 @@ describe("validate: reporting contract", () => {
         );
     });
 
-    it("includes the DAG name for cycle findings", () => {
+    it("includes the DAG id for cycle findings", () => {
         const dag = createDAG("named").chain(regular("a"), regular("b"));
 
         injectEdge(requireTask(dag, "b"), requireTask(dag, "a"));
@@ -1052,7 +1166,9 @@ describe(findViolations, () => {
             "duplicate-declared-branch",
             "foreign-edge",
             "inconsistent-edge",
+            "invalid-dag-id",
             "invalid-declared-branch",
+            "invalid-task-name",
             "self-edge",
             "self-trigger",
             "undeclared-branch-target",

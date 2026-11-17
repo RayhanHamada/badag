@@ -60,7 +60,7 @@ function describeOperand(value: TaskLike): string {
  * The template is typed, but JavaScript callers can interpolate anything, so
  * the parser validates before it hands values to DAG registration.
  */
-function assertTaskLike(value: TaskLike, dagName: string): void {
+function assertTaskLike(value: TaskLike, dagId: string): void {
     if (value instanceof DAGTask) {
         return;
     }
@@ -74,7 +74,7 @@ function assertTaskLike(value: TaskLike, dagName: string): void {
     }
 
     throw new TypeError(
-        `Wiring expression in DAG "${dagName}" expects tasks; received ${describeOperand(value)}`
+        `Wiring expression in DAG "${dagId}" expects tasks; received ${describeOperand(value)}`
     );
 }
 
@@ -96,10 +96,10 @@ function isWiringSet(operand: WiringOperand): operand is readonly TaskLike[] {
  */
 function operandTasks(
     operand: WiringOperand,
-    dagName: string
+    dagId: string
 ): readonly TaskLike[] {
     if (!isWiringSet(operand)) {
-        assertTaskLike(operand, dagName);
+        assertTaskLike(operand, dagId);
 
         return [operand];
     }
@@ -109,17 +109,17 @@ function operandTasks(
     for (const entry of operand) {
         if (Array.isArray(entry)) {
             throw new TypeError(
-                `Wiring expression in DAG "${dagName}" cannot nest task lists`
+                `Wiring expression in DAG "${dagId}" cannot nest task lists`
             );
         }
 
-        assertTaskLike(entry, dagName);
+        assertTaskLike(entry, dagId);
         tasks.push(entry);
     }
 
     if (tasks.length === 0) {
         throw new TypeError(
-            `Wiring expression in DAG "${dagName}" cannot use an empty task list`
+            `Wiring expression in DAG "${dagId}" cannot use an empty task list`
         );
     }
 
@@ -135,7 +135,7 @@ function operandTasks(
  * to `DAG.parse`.
  */
 export function parseWiringExpression(
-    dagName: string,
+    dagId: string,
     segments: TemplateStringsArray,
     operands: readonly WiringOperand[]
 ): ParsedWiring {
@@ -144,7 +144,7 @@ export function parseWiringExpression(
 
     if (operands.length === 0) {
         throw new Error(
-            `Wiring expression in DAG "${dagName}" needs at least one task`
+            `Wiring expression in DAG "${dagId}" needs at least one task`
         );
     }
 
@@ -153,24 +153,24 @@ export function parseWiringExpression(
     for (const segment of segments) {
         if (/[\r\n]/u.test(segment)) {
             throw new Error(
-                `Wiring expression in DAG "${dagName}" spans multiple lines; call parse once per expression`
+                `Wiring expression in DAG "${dagId}" spans multiple lines; call parse once per expression`
             );
         }
     }
 
     if (first.trim() !== "") {
         throw new Error(
-            `Unexpected "${first}" before the first task in DAG "${dagName}"`
+            `Unexpected "${first}" before the first task in DAG "${dagId}"`
         );
     }
 
     if (last !== undefined && last.trim() !== "") {
         throw new Error(
-            `Unexpected "${last}" after the last task in DAG "${dagName}"`
+            `Unexpected "${last}" after the last task in DAG "${dagId}"`
         );
     }
 
-    const groups = operands.map((operand) => operandTasks(operand, dagName));
+    const groups = operands.map((operand) => operandTasks(operand, dagId));
     const steps: WiringStep[] = [];
 
     for (let index = 1; index < groups.length; index += 1) {
@@ -192,7 +192,7 @@ export function parseWiringExpression(
         }
 
         throw new Error(
-            `Unrecognized wiring syntax "${segment}" in DAG "${dagName}"; expected ">>" or "<<" between tasks`
+            `Unrecognized wiring syntax "${segment}" in DAG "${dagId}"; expected ">>" or "<<" between tasks`
         );
     }
 
