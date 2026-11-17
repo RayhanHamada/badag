@@ -34,6 +34,7 @@ export type {
     CreateShortCircuit,
     CreateTask,
     CreateTrigger,
+    DAGMetadata,
     DAGName,
     DAGNameRegistry,
     DelayTaskDefinition,

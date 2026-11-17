@@ -6,6 +6,7 @@ import { TASK_KIND_ENUM } from "../task/kind";
 import type { TaskKind } from "../task/kind";
 import type { TriggerRule } from "../task/trigger-rule";
 import type { TaskConfig } from "../task/types/base";
+import type { DAGMetadata } from "./metadata";
 import type { DAGTask } from "./registered-task";
 
 /**
@@ -111,6 +112,10 @@ export interface DAGJson {
      */
     readonly dagId: string;
     /**
+     * Optional human-readable description of the DAG.
+     */
+    readonly description?: string;
+    /**
      * Registered tasks in registration order.
      */
     readonly tasks: readonly TaskJson[];
@@ -201,18 +206,26 @@ export function serializeTask(task: DAGTask): TaskJson {
 /**
  * Return a JSON-safe snapshot of a DAG.
  *
- * Tasks keep their task IDs, names, kinds, descriptions, trigger rules,
- * configs, and serializable kind-specific fields; edges are listed by task
- * name. Functions are omitted. `JSON.stringify(dag)` calls this through
- * `DAG.toJSON()`, so `config` values must be JSON-serializable for that
- * conversion.
+ * The snapshot keeps the DAG id and description; tasks keep their task IDs,
+ * names, kinds, descriptions, trigger rules, configs, and serializable
+ * kind-specific fields; edges are listed by task name. Functions are omitted.
+ * `JSON.stringify(dag)` calls this through `DAG.toJSON()`, so `config` values
+ * must be JSON-serializable for that conversion.
  */
 export function serializeDAG(
     dagId: string,
+    metadata: DAGMetadata,
     tasks: readonly DAGTask[]
 ): DAGJson {
+    const serializedTasks = tasks.map((task) => serializeTask(task));
+
+    if (metadata.description === undefined) {
+        return { dagId, tasks: serializedTasks };
+    }
+
     return {
         dagId,
-        tasks: tasks.map((task) => serializeTask(task)),
+        description: metadata.description,
+        tasks: serializedTasks,
     };
 }

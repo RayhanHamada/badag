@@ -8,6 +8,8 @@ A TypeScript SDK for declaring task graphs, wiring dependencies, and validating 
 
 **DAG ID**: The identifier of a DAG, following Airflow's `dag_id` convention: letters, numbers, underscores, dots, and dashes only, at most 250 characters, with no whitespace. Unlike a task name, an id is never trimmed, and a deviation is reported by `DAG.validate()` rather than rejected at construction. _Avoid_: DAG name, dagName, workflow id
 
+**DAG metadata**: The optional, non-structural part of a DAG supplied at construction — currently a human-readable description. It is exposed as `dag.metadata` and serialized as `description` in `DAG.toJSON()`. _Avoid_: DAG config, DAG settings
+
 **Task definition**: A name, behavior, and optional metadata declared before the task belongs to any DAG. _Avoid_: task spec, task template, unregistered task
 
 **Task metadata**: The optional, non-behavioral part of a task definition — description, config, trigger rule, and kind-specific timing such as a polling interval. Metadata never affects task identity. _Avoid_: options, settings, attributes

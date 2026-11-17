@@ -10,6 +10,7 @@ import type { NextBranches } from "./chain/branches";
 import type { NextEdges } from "./chain/edges";
 import type { ChainProblem, ParseProblem } from "./chain/problem";
 import type { NextSignatures } from "./chain/signatures";
+import type { DAGMetadata } from "./metadata";
 import {
     DAGTask,
     isDefinition,
@@ -46,19 +47,21 @@ export class DAG<
     Branches = Record<never, never>,
 > {
     readonly #dagId: DagId;
+    readonly #metadata: DAGMetadata;
     // Same task objects, two indexes: name drives public lookup and order;
     // task ID drives identity and duplicate detection.
     readonly #tasks = new Map<TaskNameIndex, DAGTask>();
     readonly #tasksById = new Map<TaskIdIndex, DAGTask>();
 
     /**
-     * Store the DAG id verbatim.
+     * Store the DAG id and metadata verbatim.
      *
      * The id is not rejected here; `validate()` reports an id that does not
      * follow Airflow's `dag_id` convention.
      */
-    constructor(dagId: DagId) {
+    constructor(dagId: DagId, metadata?: DAGMetadata) {
         this.#dagId = dagId;
+        this.#metadata = metadata ?? {};
     }
 
     /**
@@ -66,6 +69,13 @@ export class DAG<
      */
     get dagId(): DagId {
         return this.#dagId;
+    }
+
+    /**
+     * Metadata supplied when the DAG was constructed.
+     */
+    get metadata(): DAGMetadata {
+        return this.#metadata;
     }
 
     /**
@@ -301,14 +311,16 @@ export class DAG<
     /**
      * Return a JSON-safe snapshot of the graph.
      *
-     * The snapshot keeps the DAG id; tasks keep their task IDs, names, kinds,
-     * descriptions, trigger rules, configs, and serializable kind-specific
-     * fields; edges are listed by task name. Functions are omitted.
-     * `JSON.stringify(dag)` calls this method, so `config` values must be
-     * JSON-serializable for that conversion.
+     * The snapshot keeps the DAG id and description; tasks keep their task
+     * IDs, names, kinds, descriptions, trigger rules, configs, and
+     * serializable kind-specific fields; edges are listed by task name.
+     * Functions are omitted. `JSON.stringify(dag)` calls this method, so
+     * `config` values must be JSON-serializable for that conversion.
      */
     toJSON(): DAGJson {
-        return serializeDAG(this.#dagId, [...this.#tasks.values()]);
+        return serializeDAG(this.#dagId, this.#metadata, [
+            ...this.#tasks.values(),
+        ]);
     }
 
     #assertHandleBelongs(task: TaskLike): void {
@@ -539,5 +551,6 @@ export class DAG<
  * `dag_id` convention; `validate()` reports an id that does not.
  */
 export const createDAG = <const DagId extends string>(
-    dagId: DagId
-): DAG<DagId> => new DAG(dagId);
+    dagId: DagId,
+    metadata?: DAGMetadata
+): DAG<DagId> => new DAG(dagId, metadata);

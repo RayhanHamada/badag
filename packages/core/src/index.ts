@@ -8,6 +8,8 @@ export type { DAGViolation, DAGViolationCode } from "./dag/audit/violation";
 
 export type { WiringOperand } from "./dag/wiring";
 
+export type { DAGMetadata } from "./dag/metadata";
+
 export {
     branch,
     delay,

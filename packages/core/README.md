@@ -899,7 +899,7 @@ Readiness is runtime-owned. The SDK stores `triggerRule` but does not evaluate i
 
 ## Serialization
 
-`dag.toJSON()` returns a `DAGJson` snapshot: the `dagId`, every task in registration order, and each task's edges as **task names**. Each entry is a `TaskJson`.
+`dag.toJSON()` returns a `DAGJson` snapshot: the `dagId`, the DAG's optional `description`, every task in registration order, and each task's edges as **task names**. Each entry is a `TaskJson`.
 
 ```ts
 import { createDAG, task } from "@badag/core";
@@ -911,7 +911,10 @@ const extract = task("extract", {
 });
 const load = task("load", { fn: () => "stored" });
 
-const dag = createDAG("etl").chain(extract, load);
+const dag = createDAG("etl", { description: "Nightly ETL" }).chain(
+    extract,
+    load
+);
 
 const json = dag.toJSON();
 ```
@@ -921,6 +924,7 @@ The resulting JSON structure:
 ```json
 {
     "dagId": "etl",
+    "description": "Nightly ETL",
     "tasks": [
         {
             "id": "…",
@@ -945,6 +949,7 @@ The resulting JSON structure:
 ```
 
 - `dagId` is the Airflow-style DAG id supplied to `createDAG()`.
+- `description` is the DAG's optional description, included when supplied to `createDAG()` or `new DAG()`.
 - `id` is the registered task's task ID; `name` is unique within the DAG.
 - `kind` is always included and identifies the task factory that created the definition.
 - `triggerRule` is always included and defaults to `all_success`.
@@ -1034,8 +1039,8 @@ grouped.toJSON().tasks.map(({ name, upstream, downstream }) => ({
 
 | Export | Kind | Summary |
 | --- | --- | --- |
-| `createDAG` | function | `createDAG(dagId)` returns a `DAG`; keeps the literal DAG id type, so `chain()` checks apply |
-| `DAG` | class | `dagId`, `tasks`, `getTask()`, `addDependency()`, `addDependencies()`, `chain()`, `parse`, `validate()`, `topologicalSort()`, `toJSON()` |
+| `createDAG` | function | `createDAG(dagId, metadata?)` returns a `DAG`; keeps the literal DAG id type, so `chain()` checks apply |
+| `DAG` | class | `dagId`, `metadata`, `tasks`, `getTask()`, `addDependency()`, `addDependencies()`, `chain()`, `parse`, `validate()`, `topologicalSort()`, `toJSON()` |
 | `DAGTask` | type | Registered task handle; `id`, `name`, `kind`, `definition`, `description`, `config`, `triggerRule`, `upstream`, `downstream`, `setUpstream()`, `setDownstream()`, `dependsOn()`, `toJSON()`. Minted by `DAG`, not constructible by consumers |
 | `task` | function | Creates a regular task definition from a name and `{ fn }` input |
 | `sensor` | function | Creates a sensor definition storing a predicate and optional `pokeIntervalMs`; the SDK does not poll |
@@ -1069,7 +1074,8 @@ grouped.toJSON().tasks.map(({ name, upstream, downstream }) => ({
 | `DAGViolationCode` | type | Value union of `DAG_VIOLATION_ENUM` |
 | `DAG_VIOLATION_ENUM` | object | Enum-like map of the `validate()` finding codes |
 | `TaskJson` | type | Discriminated union of serialized task kinds; includes `kind` and kind-specific serializable fields |
-| `DAGJson` | interface | `{ dagId, tasks }` returned by `toJSON()` |
+| `DAGJson` | interface | `{ dagId, description?, tasks }` returned by `toJSON()` |
+| `DAGMetadata` | interface | `{ description? }` accepted as the second argument to `createDAG()` and `new DAG()` |
 | `CreateTask` | type | Call signature of `task(name, input)` |
 | `TaskSchema` | type | Standard Schema accepted by `input`/`output` |
 | `TaskPayloadOf<S>` | type | Value `ctx.payload` carries for schema `S` |
@@ -1085,7 +1091,8 @@ grouped.toJSON().tasks.map(({ name, upstream, downstream }) => ({
 - `TaskFn` is the regular task callback, `(ctx: TaskContext<Name>) => unknown`; `PromiseLike` results are allowed and are not awaited by the SDK. Sensor, branch, and short-circuit callbacks use `MaybePromise` results.
 - Sensor, branch, and short-circuit callbacks receive the task context. A scheduler calls a sensor's `predicate` and repeats it according to `pokeIntervalMs`; a branch's `choose` returns the branch name(s); a short-circuit's `condition` returns the gate result.
 - `DAGTask` is exported as a type only; obtain handles from `DAG` methods rather than constructing them.
-- `createDAG(dagId)` returns a `DAG<DagId>` instance with the literal DAG id preserved, so `chain()` checks apply exactly as they do for a directly constructed `DAG`; the constructor stays public. DAG ids follow Airflow's `dag_id` convention: letters, numbers, `_`, `.`, and `-`, at most 250 characters, with no whitespace; ids are never trimmed and are reported by `validate()` rather than rejected at construction.
+- `createDAG(dagId, metadata?)` returns a `DAG<DagId>` instance with the literal DAG id preserved, so `chain()` checks apply exactly as they do for a directly constructed `DAG`; the constructor stays public. DAG ids follow Airflow's `dag_id` convention: letters, numbers, `_`, `.`, and `-`, at most 250 characters, with no whitespace; ids are never trimmed and are reported by `validate()` rather than rejected at construction.
+- `DAGMetadata` is the optional second argument to `createDAG()` and `new DAG()`; currently it carries only `description`. The value is exposed as `dag.metadata` and `toJSON()` serializes the description when present.
 - `DAGTask.kind` identifies the factory, and `DAGTask.definition` retains the original kind-specific definition, including callbacks that are not serialized.
 - `getTask()`, `topologicalSort()`, and `task.upstream` expose `DAGTask`. Narrow `task.definition.kind` to access the kind-specific behavior field and pass `{ id: task.id, name: task.name }` when invoking it.
 - `DAG` carries internal type parameters for the definitions and edges added through `chain()`. Annotating a value as plain `DAG` intentionally opts out of the compile-time checks above.

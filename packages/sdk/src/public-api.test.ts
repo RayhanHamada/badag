@@ -6,6 +6,7 @@ import type {
     AnyTaskDefinition,
     BranchTaskDefinition,
     CreateTask,
+    DAGMetadata,
     DelayTaskDefinition,
     TaskContext,
     TaskDefinitionBase,
@@ -33,7 +34,8 @@ describe("@badag/sdk", () => {
     });
 
     it("returns a core DAG that wiring accepts", () => {
-        const created = sdk.createDAG("etl");
+        const metadata: DAGMetadata = { description: "Nightly ETL" };
+        const created = sdk.createDAG("etl", metadata);
 
         const dag = created.chain(
             sdk.task("extract", { fn: () => "raw" }),
@@ -42,6 +44,7 @@ describe("@badag/sdk", () => {
         );
 
         expectTypeOf(created).toEqualTypeOf<DAG<"etl">>();
+        expect(created.metadata).toStrictEqual(metadata);
         expect(dag.topologicalSort().map((task) => task.name)).toStrictEqual([
             "extract",
             "settle",

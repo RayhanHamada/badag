@@ -439,6 +439,15 @@ describe("DAG construction", () => {
             "extract",
         ]);
     });
+
+    it("stores DAG metadata and defaults to an empty object", () => {
+        const metadata = { description: "Nightly pricing" };
+        const dag = createDAG("etl", metadata);
+
+        expect(dag.metadata).toStrictEqual(metadata);
+        expect(createDAG("etl").metadata).toStrictEqual({});
+        expect(new DAG("etl", metadata).metadata).toStrictEqual(metadata);
+    });
 });
 
 describe("DAG registration", () => {
@@ -1014,6 +1023,16 @@ describe("JSON representation", () => {
     it("returns an empty task list for an empty DAG", () => {
         expect(createDAG("empty").toJSON()).toStrictEqual({
             dagId: "empty",
+            tasks: [],
+        });
+    });
+
+    it("includes the DAG description when present", () => {
+        expect(
+            createDAG("etl", { description: "Nightly pricing" }).toJSON()
+        ).toStrictEqual({
+            dagId: "etl",
+            description: "Nightly pricing",
             tasks: [],
         });
     });

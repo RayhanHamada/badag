@@ -15,6 +15,7 @@ import {
 } from "./index";
 import type {
     DAGJson,
+    DAGMetadata,
     DAGTask,
     TaskConfig,
     TaskContext,
@@ -198,6 +199,17 @@ describe("public task types", () => {
             DAGTask<"extract"> | undefined
         >();
         expect(dag.dagId).toBe("etl");
+    });
+
+    it("types DAG metadata", () => {
+        const metadata: DAGMetadata = { description: "Nightly ETL" };
+        const dag = createDAG("etl", metadata);
+
+        expectTypeOf(dag.metadata).toEqualTypeOf<DAGMetadata>();
+        expectTypeOf(dag.toJSON().description).toEqualTypeOf<
+            string | undefined
+        >();
+        expect(dag.metadata).toStrictEqual(metadata);
     });
 
     it("reports an invalid DAG id through validate", () => {
