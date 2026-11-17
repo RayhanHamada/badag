@@ -1,9 +1,9 @@
 import { assertPositiveDuration } from "../definition/duration";
 import { taskMetadata } from "../definition/metadata";
 import { taskSchemas } from "../definition/schemas";
-import { normalizeTaskName } from "../definition/task-name";
+import { normalizeTaskId } from "../definition/task-id";
 import { TASK_KIND_ENUM } from "../kind";
-import type { AnySchema, SchemaOf, TrimTaskName } from "../types/base";
+import type { AnySchema, SchemaOf, TrimTaskId } from "../types/base";
 import type { SensorTaskDefinition, SensorTaskInput } from "../types/sensor";
 
 /**
@@ -14,14 +14,14 @@ import type { SensorTaskDefinition, SensorTaskInput } from "../types/sensor";
  * predicate.
  */
 export function sensor<
-    const Name extends string,
+    const Id extends string,
     Input extends AnySchema = undefined,
     Output extends AnySchema = SchemaOf<boolean>,
 >(
-    name: Name,
-    input: SensorTaskInput<TrimTaskName<Name>, Input, Output>
-): SensorTaskDefinition<TrimTaskName<Name>, Input, Output> {
-    const normalized = normalizeTaskName(name);
+    id: Id,
+    input: SensorTaskInput<TrimTaskId<Id>, Input, Output>
+): SensorTaskDefinition<TrimTaskId<Id>, Input, Output> {
+    const normalized = normalizeTaskId(id);
     const { pokeIntervalMs } = input;
 
     if (pokeIntervalMs !== undefined) {
@@ -30,11 +30,11 @@ export function sensor<
 
     const definition = {
         kind: TASK_KIND_ENUM.Sensor,
-        name: normalized,
+        id: normalized,
         predicate: input.predicate,
         ...taskMetadata(input),
         ...taskSchemas(input),
-    } satisfies SensorTaskDefinition<TrimTaskName<Name>, Input, Output>;
+    } satisfies SensorTaskDefinition<TrimTaskId<Id>, Input, Output>;
 
     return pokeIntervalMs === undefined
         ? definition

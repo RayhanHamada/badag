@@ -2,8 +2,8 @@
 
 import type {
     ChainGroup,
-    GroupNames,
-    HasBroadNames,
+    GroupIds,
+    HasBroadIds,
     TooManyGroups,
 } from "./shared";
 
@@ -26,7 +26,7 @@ export type AddChainEdges<
     ...infer Rest extends readonly ChainGroup[],
 ]
     ? AddChainEdges<
-          AddEdges<Edges, GroupNames<Group>, GroupNames<Next>>,
+          AddEdges<Edges, GroupIds<Group>, GroupIds<Next>>,
           [Next, ...Rest]
       >
     : Edges;
@@ -73,22 +73,18 @@ export type FindChainCycle<
     infer Next extends ChainGroup,
     ...infer Rest extends readonly ChainGroup[],
 ]
-    ? Extract<GroupNames<Group>, GroupNames<Next>> extends infer Overlap extends
+    ? Extract<GroupIds<Group>, GroupIds<Next>> extends infer Overlap extends
           string
         ? [Overlap] extends [never]
-            ? AnyReaches<
-                  Edges,
-                  GroupNames<Next>,
-                  GroupNames<Group>
-              > extends true
-                ? `Dependency "${GroupNames<Group> & string}" -> "${GroupNames<Next> & string}" creates a cycle`
+            ? AnyReaches<Edges, GroupIds<Next>, GroupIds<Group>> extends true
+                ? `Dependency "${GroupIds<Group> & string}" -> "${GroupIds<Next> & string}" creates a cycle`
                 : FindChainCycle<Edges, [Next, ...Rest]>
             : `Task "${Overlap}" cannot depend on itself`
         : never
     : true;
 
 export type NextEdges<Edges, Groups extends readonly ChainGroup[]> =
-    HasBroadNames<Groups> extends true
+    HasBroadIds<Groups> extends true
         ? Edges
         : TooManyGroups<Groups> extends true
           ? Edges

@@ -1,88 +1,80 @@
 import { TASK_KIND_ENUM } from "../kind";
 import type { AnyTaskDefinition } from "../types/definitions";
 
-/**
- * The behavior callback of a callable kind, or `undefined` for a declarative
- * kind.
- *
- * Two definitions with the same task ID share a behavior source. For callable
- * kinds a shared source does not prove a shared closure, so registration
- * compares these references before treating one definition as a duplicate of
- * the other. Declarative kinds carry every behavior-defining value in their
- * source text, so a matching source is enough.
- */
-export function taskBehaviorCallback(definition: AnyTaskDefinition): unknown {
-    switch (definition.kind) {
-        case TASK_KIND_ENUM.Task: {
-            return definition.fn;
-        }
-
-        case TASK_KIND_ENUM.Sensor: {
-            return definition.predicate;
-        }
-
-        case TASK_KIND_ENUM.Branch: {
-            return definition.choose;
-        }
-
-        case TASK_KIND_ENUM.ShortCircuit: {
-            return definition.condition;
-        }
-
-        case TASK_KIND_ENUM.Delay:
-        case TASK_KIND_ENUM.Trigger: {
-            return undefined;
-        }
-
-        default: {
-            const exhaustiveCheck: never = definition;
-
-            return exhaustiveCheck;
-        }
+/** Whether two optional branch sets declare the same names in the same order. */
+function sameBranchSet(
+    left: readonly string[] | undefined,
+    right: readonly string[] | undefined
+): boolean {
+    if (left === right) {
+        return true;
     }
+
+    if (left === undefined || right === undefined) {
+        return false;
+    }
+
+    return (
+        left.length === right.length &&
+        left.every((name, index) => name === right[index])
+    );
 }
 
 /**
- * The behavior source of a task definition: the half of its identity that is
- * not the name.
+ * Whether two definitions with the same task id describe the same behavior.
  *
- * Callable kinds contribute their behavior callback source; declarative kinds
- * contribute their behavior-defining fields. Metadata never contributes.
+ * Callback kinds compare callback references, so captured values count.
+ * Declarative kinds compare the fields that determine what they do. Metadata
+ * is ignored: a duplicate registration keeps the first definition's metadata.
  */
-export function taskBehaviorSource(definition: AnyTaskDefinition): string {
-    switch (definition.kind) {
+export function sameTaskBehavior(
+    left: AnyTaskDefinition,
+    right: AnyTaskDefinition
+): boolean {
+    switch (left.kind) {
         case TASK_KIND_ENUM.Task: {
-            return `${definition.kind}:${definition.fn.toString()}`;
+            return right.kind === TASK_KIND_ENUM.Task && left.fn === right.fn;
         }
 
         case TASK_KIND_ENUM.Sensor: {
-            return `${definition.kind}:${definition.predicate.toString()}`;
+            return (
+                right.kind === TASK_KIND_ENUM.Sensor &&
+                left.predicate === right.predicate
+            );
         }
 
         case TASK_KIND_ENUM.Delay: {
-            return `${definition.kind}:${definition.durationMs}`;
+            return (
+                right.kind === TASK_KIND_ENUM.Delay &&
+                left.durationMs === right.durationMs
+            );
         }
 
         case TASK_KIND_ENUM.Branch: {
-            return `${definition.kind}:${JSON.stringify([
-                definition.branches,
-                definition.choose.toString(),
-            ])}`;
+            return (
+                right.kind === TASK_KIND_ENUM.Branch &&
+                left.choose === right.choose &&
+                sameBranchSet(left.branches, right.branches)
+            );
         }
 
         case TASK_KIND_ENUM.ShortCircuit: {
-            return `${definition.kind}:${definition.condition.toString()}`;
+            return (
+                right.kind === TASK_KIND_ENUM.ShortCircuit &&
+                left.condition === right.condition
+            );
         }
 
         case TASK_KIND_ENUM.Trigger: {
-            return `${definition.kind}:${JSON.stringify([
-                definition.dagName,
-                definition.waitForCompletion,
-            ])}`;
+            return (
+                right.kind === TASK_KIND_ENUM.Trigger &&
+                left.dagId === right.dagId &&
+                left.waitForCompletion === right.waitForCompletion
+            );
         }
 
         default: {
-            const exhaustiveCheck: never = definition;
+            const exhaustiveCheck: never = left;
 
             return exhaustiveCheck;
         }

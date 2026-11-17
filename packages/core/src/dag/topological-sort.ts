@@ -36,7 +36,7 @@ export function sortTopologically(
 
             if (remaining === undefined) {
                 throw new Error(
-                    `Task "${downstream.name}" is not registered in DAG "${dagId}"`
+                    `Task "${downstream.id}" is not registered in DAG "${dagId}"`
                 );
             }
 

@@ -35,7 +35,7 @@ function regular(name: string): TaskDefinition {
 
 /** Whether `name` is registered as a task in `dag`. */
 function hasTask(dag: DAG, name: string): boolean {
-    return [...dag.tasks.values()].some((task) => task.name === name);
+    return [...dag.tasks.values()].some((task) => task.id === name);
 }
 
 function requireTask(dag: DAG, name: string): DAGTask {
@@ -66,11 +66,11 @@ function injectEdge(from: DAGTask, to: DAGTask): void {
 }
 
 /**
- * Rewrite a registered task's name without re-running registration, so the
+ * Rewrite a registered task's id without re-running registration, so the
  * graph is exactly what `validate()` must audit.
  */
-function renameTask(task: DAGTask, name: string): void {
-    Object.defineProperty(task, "name", { value: name });
+function renameTask(task: DAGTask, id: string): void {
+    Object.defineProperty(task, "id", { value: id });
 }
 
 describe("validate: graphs built through the wiring API", () => {
@@ -165,8 +165,8 @@ describe("validate: graphs built through the wiring API", () => {
     });
 
     it("reports nothing for a deep single chain", () => {
-        const names = Array.from({ length: 100 }, (_, index) => `t${index}`);
-        const dag = createDAG("deep").chain(...names.map(regular));
+        const ids = Array.from({ length: 100 }, (_, index) => `t${index}`);
+        const dag = createDAG("deep").chain(...ids.map(regular));
 
         expect(dag.validate()).toStrictEqual([]);
     });
@@ -209,7 +209,7 @@ describe("validate: graphs built through the wiring API", () => {
             sensor("wait", { predicate: () => true }),
             delay("pause", { durationMs: 10 }),
             shortCircuit("gate", { condition: () => true }),
-            trigger("launch", { dagName: "child" })
+            trigger("launch", { dagId: "child" })
         );
 
         expect(dag.validate()).toStrictEqual([]);
@@ -247,7 +247,7 @@ describe("validate: graphs built through the wiring API", () => {
 
         expect(dag.tasks.size).toBe(2);
         expect(
-            [...requireTask(dag, "a").downstream].map((task) => task.name)
+            [...requireTask(dag, "a").downstream].map((task) => task.id)
         ).toStrictEqual(["b"]);
     });
 });
@@ -291,31 +291,31 @@ describe("validate: DAG id", () => {
     });
 });
 
-describe("validate: task names", () => {
-    it("reports a name outside Airflow's task_id convention", () => {
+describe("validate: task ids", () => {
+    it("reports an id outside Airflow's task_id convention", () => {
         const dag = createDAG("names").chain(regular("extract"));
         renameTask(requireTask(dag, "extract"), "extract users");
 
         expect(dag.validate()).toStrictEqual([
             {
-                code: DAG_VIOLATION_ENUM.InvalidTaskName,
+                code: DAG_VIOLATION_ENUM.InvalidTaskId,
                 message:
-                    'Task name "extract users" must use letters, numbers, ".", "-", or "_"',
+                    'Task ID "extract users" must use letters, numbers, ".", "-", or "_"',
                 subjects: ["extract users"],
             },
         ]);
     });
 
-    it("reports a name longer than Airflow's limit", () => {
-        const name = "a".repeat(251);
+    it("reports an id longer than Airflow's limit", () => {
+        const id = "a".repeat(251);
         const dag = createDAG("names").chain(regular("extract"));
-        renameTask(requireTask(dag, "extract"), name);
+        renameTask(requireTask(dag, "extract"), id);
 
         expect(dag.validate()).toStrictEqual([
             {
-                code: DAG_VIOLATION_ENUM.InvalidTaskName,
-                message: `Task name "${name}" must be at most 250 characters`,
-                subjects: [name],
+                code: DAG_VIOLATION_ENUM.InvalidTaskId,
+                message: `Task ID "${id}" must be at most 250 characters`,
+                subjects: [id],
             },
         ]);
     });
@@ -330,13 +330,13 @@ describe("validate: task names", () => {
         expect(dag.validate()).toStrictEqual([]);
     });
 
-    it("reports the DAG id before task names", () => {
+    it("reports the DAG id before task ids", () => {
         const dag = createDAG("bad id").chain(regular("extract"));
         renameTask(requireTask(dag, "extract"), "extract users");
 
         expect(codes(dag.validate())).toStrictEqual([
             "invalid-dag-id",
-            "invalid-task-name",
+            "invalid-task-id",
         ]);
     });
 });
@@ -514,7 +514,7 @@ describe("validate: cycles", () => {
         ]);
     });
 
-    it("reports a cycle under a task name that matches a code", () => {
+    it("reports a cycle under a task id that matches a code", () => {
         const dag = createDAG("kw").chain(
             regular("cycle"),
             regular("self-edge")
@@ -846,7 +846,7 @@ describe("validate: declared branch names", () => {
             {
                 code: DAG_VIOLATION_ENUM.InvalidDeclaredBranch,
                 message:
-                    'Branch "route" declares "", which is not a valid task name',
+                    'Branch "route" declares "", which is not a valid task id',
                 subjects: ["route", ""],
             },
         ]);
@@ -875,7 +875,7 @@ describe("validate: declared branch names", () => {
             {
                 code: DAG_VIOLATION_ENUM.InvalidDeclaredBranch,
                 message:
-                    'Branch "route" declares "united states", which is not a valid task name',
+                    'Branch "route" declares "united states", which is not a valid task id',
                 subjects: ["route", "united states"],
             },
         ]);
@@ -892,7 +892,7 @@ describe("validate: declared branch names", () => {
         expect(dag.validate()).toStrictEqual([
             {
                 code: DAG_VIOLATION_ENUM.InvalidDeclaredBranch,
-                message: `Branch "route" declares "${longName}", which is not a valid task name`,
+                message: `Branch "route" declares "${longName}", which is not a valid task id`,
                 subjects: ["route", longName],
             },
         ]);
@@ -961,7 +961,7 @@ describe("validate: declared branch names", () => {
 describe("validate: trigger tasks", () => {
     it("reports a trigger that starts its own DAG", () => {
         const dag = createDAG("daily").chain(
-            trigger("relaunch", { dagName: "daily" })
+            trigger("relaunch", { dagId: "daily" })
         );
 
         expect(dag.validate()).toStrictEqual([
@@ -976,7 +976,7 @@ describe("validate: trigger tasks", () => {
 
     it("reports a self trigger whose target is padded", () => {
         const dag = createDAG("daily").chain(
-            trigger("relaunch", { dagName: " daily " })
+            trigger("relaunch", { dagId: " daily " })
         );
 
         expect(codes(dag.validate())).toStrictEqual([
@@ -986,7 +986,7 @@ describe("validate: trigger tasks", () => {
 
     it("accepts a trigger that starts another DAG", () => {
         const dag = createDAG("parent").chain(
-            trigger("kick", { dagName: "child" })
+            trigger("kick", { dagId: "child" })
         );
 
         expect(dag.validate()).toStrictEqual([]);
@@ -994,7 +994,7 @@ describe("validate: trigger tasks", () => {
 
     it("accepts a trigger whose target differs only by case", () => {
         const dag = createDAG("daily").chain(
-            trigger("kick", { dagName: "Daily" })
+            trigger("kick", { dagId: "Daily" })
         );
 
         expect(dag.validate()).toStrictEqual([]);
@@ -1002,9 +1002,9 @@ describe("validate: trigger tasks", () => {
 
     it("reports each self-triggering task separately", () => {
         const dag = createDAG("loop").chain([
-            trigger("first", { dagName: "loop" }),
-            trigger("second", { dagName: "loop" }),
-            trigger("third", { dagName: "other" }),
+            trigger("first", { dagId: "loop" }),
+            trigger("second", { dagId: "loop" }),
+            trigger("third", { dagId: "other" }),
         ]);
 
         expect(dag.validate().map(subjectsOf)).toStrictEqual([
@@ -1016,7 +1016,7 @@ describe("validate: trigger tasks", () => {
     it("reports a self trigger alongside a branch finding", () => {
         const dag = createDAG("loop")
             .chain([route(["us"])])
-            .chain([trigger("relaunch", { dagName: "loop" })]);
+            .chain([trigger("relaunch", { dagId: "loop" })]);
 
         expect(codes(dag.validate())).toStrictEqual([
             DAG_VIOLATION_ENUM.UnroutedBranch,
@@ -1035,7 +1035,7 @@ describe("validate: subject names", () => {
 
     it("names a DAG, not a task, for a self trigger", () => {
         const dag = createDAG("daily").chain(
-            trigger("relaunch", { dagName: "daily" })
+            trigger("relaunch", { dagId: "daily" })
         );
 
         expect(hasTask(dag, "daily")).toBeFalsy();
@@ -1168,7 +1168,7 @@ describe(findViolations, () => {
             "inconsistent-edge",
             "invalid-dag-id",
             "invalid-declared-branch",
-            "invalid-task-name",
+            "invalid-task-id",
             "self-edge",
             "self-trigger",
             "undeclared-branch-target",

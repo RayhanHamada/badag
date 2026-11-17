@@ -45,7 +45,7 @@ describe("@badag/sdk", () => {
 
         expectTypeOf(created).toEqualTypeOf<DAG<"etl">>();
         expect(created.metadata).toStrictEqual(metadata);
-        expect(dag.topologicalSort().map((task) => task.name)).toStrictEqual([
+        expect(dag.topologicalSort().map((task) => task.id)).toStrictEqual([
             "extract",
             "settle",
             "load",
@@ -63,7 +63,7 @@ describe("@badag/sdk", () => {
 
         const polled = sdk.sensor("ready", { predicate: () => true });
         const gated = sdk.shortCircuit("gate", { condition: () => true });
-        const triggered = sdk.trigger("fanout", { dagName: "other" });
+        const triggered = sdk.trigger("fanout", { dagId: "other" });
 
         expect([
             regular.kind,
@@ -81,7 +81,7 @@ describe("@badag/sdk", () => {
             sdk.TASK_KIND_ENUM.Trigger,
         ]);
         expect(delayed.durationMs).toBe(100);
-        expect(triggered.dagName).toBe("other");
+        expect(triggered.dagId).toBe("other");
         expectTypeOf(delayed).toEqualTypeOf<DelayTaskDefinition<"settle">>();
         expectTypeOf(routed).toEqualTypeOf<
             BranchTaskDefinition<"route", readonly ["us", "eu"]>
@@ -90,7 +90,7 @@ describe("@badag/sdk", () => {
 
     it("re-exports task authoring types", () => {
         const fn = ((ctx: TaskContext<"extract">) =>
-            ctx.name.length) satisfies TaskFn<"extract", undefined, number>;
+            ctx.id.length) satisfies TaskFn<"extract", undefined, number>;
 
         const create: CreateTask = sdk.task;
         const definition = create("extract", { fn });
@@ -106,7 +106,7 @@ describe("@badag/sdk", () => {
         const produced: TaskProducedOf<undefined> = undefined;
         const rule: TriggerRule = "all_success";
 
-        expectTypeOf(base.name).toEqualTypeOf<"extract">();
+        expectTypeOf(base.id).toEqualTypeOf<"extract">();
         expectTypeOf(fn).returns.toEqualTypeOf<number>();
         expect(anyDefinition.kind).toBe("task");
         expect(params.description).toBe("extract rows");

@@ -7,10 +7,10 @@ import type {
     DuplicateTaskMessage,
     Equal,
     FlattenGroups,
-    HasBroadNames,
+    HasBroadIds,
     IsBroadFn,
     TaskFnOf,
-    TaskNameOf,
+    TaskIdOf,
     TooManyGroups,
 } from "./shared";
 
@@ -37,16 +37,16 @@ interface RegistrationError<Message extends string> {
 type RegisterTask<DagId extends string, Signatures, Task extends ChainTask> =
     IsBroadFn<TaskFnOf<Task>> extends true
         ? RegistrationOk<Signatures>
-        : TaskNameOf<Task> extends infer TaskName extends string
-          ? TaskName extends keyof Signatures
-              ? IsBroadFn<Signatures[TaskName] & TaskFn> extends true
+        : TaskIdOf<Task> extends infer TaskId extends string
+          ? TaskId extends keyof Signatures
+              ? IsBroadFn<Signatures[TaskId] & TaskFn> extends true
                   ? RegistrationOk<Signatures>
-                  : Equal<TaskFnOf<Task>, Signatures[TaskName]> extends true
+                  : Equal<TaskFnOf<Task>, Signatures[TaskId]> extends true
                     ? RegistrationOk<Signatures>
-                    : RegistrationError<DuplicateTaskMessage<DagId, TaskName>>
+                    : RegistrationError<DuplicateTaskMessage<DagId, TaskId>>
               : RegistrationOk<
                     Signatures & {
-                        readonly [Name in TaskName]: TaskFnOf<Task>;
+                        readonly [Name in TaskId]: TaskFnOf<Task>;
                     }
                 >
           : RegistrationOk<Signatures>;
@@ -75,7 +75,7 @@ export type NextSignatures<
     Signatures,
     Groups extends readonly ChainGroup[],
 > =
-    HasBroadNames<Groups> extends true
+    HasBroadIds<Groups> extends true
         ? Signatures
         : TooManyGroups<Groups> extends true
           ? Signatures

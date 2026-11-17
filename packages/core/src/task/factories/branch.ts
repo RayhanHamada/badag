@@ -1,8 +1,8 @@
 import { taskMetadata } from "../definition/metadata";
 import { taskSchemas } from "../definition/schemas";
-import { normalizeTaskName } from "../definition/task-name";
+import { normalizeTaskId } from "../definition/task-id";
 import { TASK_KIND_ENUM } from "../kind";
-import type { AnySchema, SchemaOf, TrimTaskName } from "../types/base";
+import type { AnySchema, SchemaOf, TrimTaskId } from "../types/base";
 import type {
     BranchChoice,
     BranchTaskDefinition,
@@ -17,29 +17,24 @@ import type {
  * downstream task(s) to run; the SDK itself does not prune edges.
  */
 export function branch<
-    const Name extends string,
+    const Id extends string,
     const Branches extends readonly string[] = readonly string[],
     Input extends AnySchema = undefined,
     Output extends AnySchema = SchemaOf<BranchChoice<Branches[number]>>,
 >(
-    name: Name,
-    input: BranchTaskInput<TrimTaskName<Name>, Branches, Input, Output>
-): BranchTaskDefinition<TrimTaskName<Name>, Branches, Input, Output> {
-    const normalized = normalizeTaskName(name);
+    id: Id,
+    input: BranchTaskInput<TrimTaskId<Id>, Branches, Input, Output>
+): BranchTaskDefinition<TrimTaskId<Id>, Branches, Input, Output> {
+    const normalized = normalizeTaskId(id);
     const { branches } = input;
 
     const definition = {
         kind: TASK_KIND_ENUM.Branch,
-        name: normalized,
+        id: normalized,
         choose: input.choose,
         ...taskMetadata(input),
         ...taskSchemas(input),
-    } satisfies BranchTaskDefinition<
-        TrimTaskName<Name>,
-        Branches,
-        Input,
-        Output
-    >;
+    } satisfies BranchTaskDefinition<TrimTaskId<Id>, Branches, Input, Output>;
 
     return branches === undefined ? definition : { ...definition, branches };
 }

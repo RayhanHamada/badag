@@ -2,7 +2,7 @@
  * Structural helpers shared by the type-level chain checks.
  *
  * A DAG carries the signatures of the definitions registered through
- * `chain()` and the edges added by it. Names typed as plain `string` (generic
+ * `chain()` and the edges added by it. Ids typed as plain `string` (generic
  * helpers) skip the checks.
  */
 
@@ -10,16 +10,16 @@ import type { TaskFn } from "../../task/types/base";
 
 /** The structural shape the chain checks need from a handle or definition. */
 export interface ChainTask {
-    readonly name: string;
+    readonly id: string;
 }
 
 /** A task, or a wiring set. */
 export type ChainGroup = ChainTask | readonly ChainTask[];
 
-export type TaskNameOf<Task> = Task extends {
-    readonly name: infer TaskName extends string;
+export type TaskIdOf<Task> = Task extends {
+    readonly id: infer TaskId extends string;
 }
-    ? TaskName
+    ? TaskId
     : never;
 
 export type TaskFnOf<Task> = Task extends {
@@ -28,11 +28,11 @@ export type TaskFnOf<Task> = Task extends {
     ? Fn
     : TaskFn<never>;
 
-export type GroupNames<Group> = TaskNameOf<
+export type GroupIds<Group> = TaskIdOf<
     Group extends readonly (infer Task)[] ? Task : Group
 >;
 
-/** All argument names, including names inside wiring sets. */
+/** All argument ids, including ids inside wiring sets. */
 export type FlattenGroups<Groups extends readonly ChainGroup[]> =
     Groups extends readonly [
         infer Group extends ChainGroup,
@@ -44,8 +44,8 @@ export type FlattenGroups<Groups extends readonly ChainGroup[]> =
           ]
         : [];
 
-export type HasBroadNames<Groups extends readonly ChainGroup[]> =
-    string extends GroupNames<Groups[number]> ? true : false;
+export type HasBroadIds<Groups extends readonly ChainGroup[]> =
+    string extends GroupIds<Groups[number]> ? true : false;
 
 /**
  * Type-level graph walking is bounded. TypeScript hits its instantiation
@@ -121,5 +121,5 @@ export type DagIdLabel<DagId extends string> = string extends DagId
 
 export type DuplicateTaskMessage<
     DagId extends string,
-    TaskName extends string,
-> = `Task "${TaskName}" already exists in DAG "${DagIdLabel<DagId>}"`;
+    TaskId extends string,
+> = `Task "${TaskId}" already exists in DAG "${DagIdLabel<DagId>}"`;

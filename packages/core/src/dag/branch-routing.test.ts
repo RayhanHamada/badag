@@ -32,7 +32,7 @@ function requireTask(dag: DAG, name: string): DAGTask {
 }
 
 function downstreamNames(dag: DAG, name: string): string[] {
-    return [...requireTask(dag, name).downstream].map((task) => task.name);
+    return [...requireTask(dag, name).downstream].map((task) => task.id);
 }
 
 const UNDECLARED = 'Branch "route" cannot route to "apac"';
@@ -55,7 +55,7 @@ describe("branch wiring: accepted wiring", () => {
         ]);
 
         expect(
-            [...(dag.getTask("route")?.downstream ?? [])].map((t) => t.name)
+            [...(dag.getTask("route")?.downstream ?? [])].map((t) => t.id)
         ).toStrictEqual(["eu", "us"]);
     });
 
@@ -72,7 +72,7 @@ describe("branch wiring: accepted wiring", () => {
             regular("join")
         );
 
-        expect(dag.topologicalSort().map((task) => task.name)).toStrictEqual([
+        expect(dag.topologicalSort().map((task) => task.id)).toStrictEqual([
             "route",
             "us",
             "join",
@@ -224,7 +224,7 @@ describe("branch wiring: rejected wiring", () => {
         ).toThrow('Branch "route" cannot route to "US"');
     });
 
-    it("rejects a declared name that can never be a task name", () => {
+    it("rejects a declared name that can never be a task id", () => {
         expect(() =>
             createDAG("bad-name").chain(route(["us east"]), regular("us_east"))
         ).toThrow(
@@ -331,7 +331,7 @@ describe("branch wiring: precedence and repeats", () => {
         expect(requireTask(dag, "route").downstream.size).toBe(2);
     });
 
-    it("treats a reordered declared set as a different task identity", () => {
+    it("treats a reordered declared set as different behavior", () => {
         const dag = createDAG("reorder").chain(route(["us", "eu"]));
 
         expect(() => dag.chain(route(["eu", "us"]))).toThrow(
@@ -344,7 +344,7 @@ describe("branch wiring: precedence and repeats", () => {
 
         const branchJson = dag
             .toJSON()
-            .tasks.find((task) => task.name === "route");
+            .tasks.find((task) => task.id === "route");
 
         expect(branchJson?.downstream).toStrictEqual(["us"]);
     });

@@ -17,12 +17,11 @@ import type { SensorTaskDefinition } from "./types/sensor";
 import type { ShortCircuitTaskDefinition } from "./types/short-circuit";
 import type { TriggerTaskDefinition } from "./types/trigger";
 
-const context = <Name extends string, Payload = undefined>(
-    name: Name,
+const context = <Id extends string, Payload = undefined>(
+    id: Id,
     payload?: Payload
 ) => ({
-    id: `${name}-id`,
-    name,
+    id,
     // SAFETY: callers pass the payload their definition's schema produced;
     // the helper only threads it through unchanged.
     payload: payload as Payload,
@@ -70,7 +69,7 @@ describe("sensor tasks", () => {
 
         expectTypeOf(definition).toEqualTypeOf<SensorTaskDefinition<"ready">>();
         expect(definition).toMatchObject({
-            name: "ready",
+            id: "ready",
             kind: TASK_KIND_ENUM.Sensor,
             description: "Wait for readiness",
             config: { timeout_ms: 500 },
@@ -88,9 +87,9 @@ describe("sensor tasks", () => {
         ).toThrow("pokeIntervalMs must be greater than 0");
     });
 
-    it("passes the literal task name to the predicate", () => {
+    it("passes the literal task id to the predicate", () => {
         const definition = sensor("  ready  ", {
-            predicate: (ctx) => ctx.name === "ready",
+            predicate: (ctx) => ctx.id === "ready",
         });
 
         expectTypeOf(definition).toEqualTypeOf<SensorTaskDefinition<"ready">>();
@@ -137,7 +136,7 @@ describe("sensor tasks", () => {
     });
 
     // The polling interval is metadata, so it does not affect the task ID.
-    it("reuses a same-name sensor whose interval differs, keeping the first", () => {
+    it("reuses a same-id sensor whose interval differs, keeping the first", () => {
         const dag = createDAG("kinds")
             .chain(
                 sensor("ready", {
@@ -182,11 +181,11 @@ describe("delay tasks", () => {
         );
     });
 
-    it("trims the name", () => {
+    it("trims the id", () => {
         const definition = delay("  wait  ", { durationMs: 0 });
 
         expectTypeOf(definition).toEqualTypeOf<DelayTaskDefinition<"wait">>();
-        expect(definition.name).toBe("wait");
+        expect(definition.id).toBe("wait");
     });
 
     it("accepts a zero duration", () => {
@@ -234,7 +233,7 @@ describe("delay tasks", () => {
 
         expect(definition).toMatchObject({
             kind: TASK_KIND_ENUM.Delay,
-            name: "wait",
+            id: "wait",
             durationMs: 100,
             description: "Pause before publishing",
             config: { timeout_ms: 250 },
@@ -242,8 +241,8 @@ describe("delay tasks", () => {
         });
     });
 
-    // The duration is part of the behavior source, so it separates identities.
-    it("rejects a same-name delay with a different duration", () => {
+    // The duration is behavior, so a differing value conflicts with the id.
+    it("rejects a same-id delay with a different duration", () => {
         const dag = createDAG("kinds").chain(delay("wait", { durationMs: 10 }));
 
         expect(() => dag.chain(delay("wait", { durationMs: 20 }))).toThrow(
@@ -252,7 +251,7 @@ describe("delay tasks", () => {
         expect(dag.tasks.size).toBe(1);
     });
 
-    it("accepts a same-name delay with an identical duration", () => {
+    it("accepts a same-id delay with an identical duration", () => {
         const dag = createDAG("kinds")
             .chain(delay("wait", { durationMs: 10 }))
             .chain(delay("wait", { durationMs: 10 }));
@@ -265,10 +264,10 @@ describe("branch tasks", () => {
     it("returns the chosen branch or branches", async () => {
         const definition = branch("route", {
             choose: async (ctx) =>
-                ctx.name === "route" ? (["left", "right"] as const) : "left",
+                ctx.id === "route" ? (["left", "right"] as const) : "left",
         });
 
-        expectTypeOf(definition.name).toEqualTypeOf<"route">();
+        expectTypeOf(definition.id).toEqualTypeOf<"route">();
         expectTypeOf(definition.branches).toEqualTypeOf<
             readonly string[] | undefined
         >();
@@ -287,13 +286,13 @@ describe("branch tasks", () => {
         expect(definition.choose(context("route"))).toBe("left");
     });
 
-    it("passes the literal task name to the chooser", () => {
+    it("passes the literal task id to the chooser", () => {
         const definition = branch("  route  ", {
-            choose: (ctx) => (ctx.name === "route" ? "left" : "right"),
+            choose: (ctx) => (ctx.id === "route" ? "left" : "right"),
         });
 
-        expectTypeOf(definition.name).toEqualTypeOf<"route">();
-        expect(definition.name).toBe("route");
+        expectTypeOf(definition.id).toEqualTypeOf<"route">();
+        expect(definition.id).toBe("route");
         expect(definition.choose(context("route"))).toBe("left");
     });
 
@@ -315,7 +314,7 @@ describe("branch tasks", () => {
         await expect(definition.choose(context("route"))).rejects.toBe(failure);
     });
 
-    it("keeps metadata and trims the name", () => {
+    it("keeps metadata and trims the id", () => {
         const definition = branch("  route  ", {
             choose: () => "left",
             description: "Pick a path",
@@ -325,14 +324,14 @@ describe("branch tasks", () => {
 
         expect(definition).toMatchObject({
             kind: TASK_KIND_ENUM.Branch,
-            name: "route",
+            id: "route",
             description: "Pick a path",
             config: { strategy: "weighted" },
             triggerRule: TRIGGER_RULE_ENUM.OneSuccess,
         });
     });
 
-    it("rejects a same-name branch whose chooser source differs", () => {
+    it("rejects a same-id branch whose chooser differs", () => {
         const dag = createDAG("kinds").chain(
             branch("route", { choose: () => "left" })
         );
@@ -343,7 +342,7 @@ describe("branch tasks", () => {
         expect(dag.tasks.size).toBe(1);
     });
 
-    it("includes the task kind in the identity of a same-named task", () => {
+    it("rejects a same-id task of a different kind", () => {
         const dag = createDAG("kinds").chain(
             task("route", { fn: () => "raw" })
         );
@@ -358,7 +357,7 @@ describe("branch tasks", () => {
 describe("short-circuit tasks", () => {
     it("returns the condition result", async () => {
         const definition = shortCircuit("gate", {
-            condition: async (ctx) => ctx.name === "gate",
+            condition: async (ctx) => ctx.id === "gate",
         });
 
         expectTypeOf(definition).toEqualTypeOf<
@@ -376,15 +375,15 @@ describe("short-circuit tasks", () => {
         expect(definition.condition(context("gate"))).toBeFalsy();
     });
 
-    it("passes the literal task name to the condition", () => {
+    it("passes the literal task id to the condition", () => {
         const definition = shortCircuit("  gate  ", {
-            condition: (ctx) => ctx.name === "gate",
+            condition: (ctx) => ctx.id === "gate",
         });
 
         expectTypeOf(definition).toEqualTypeOf<
             ShortCircuitTaskDefinition<"gate", undefined, SchemaOf<boolean>>
         >();
-        expect(definition.name).toBe("gate");
+        expect(definition.id).toBe("gate");
     });
 
     it("propagates a rejection from an async condition", async () => {
@@ -411,14 +410,14 @@ describe("short-circuit tasks", () => {
 
         expect(definition).toMatchObject({
             kind: TASK_KIND_ENUM.ShortCircuit,
-            name: "gate",
+            id: "gate",
             description: "Stop when empty",
             config: { on_skip: "prune" },
             triggerRule: TRIGGER_RULE_ENUM.AllDone,
         });
     });
 
-    it("rejects a same-name gate whose condition source differs", () => {
+    it("rejects a same-id gate whose condition differs", () => {
         const dag = createDAG("kinds").chain(
             shortCircuit("gate", { condition: () => true })
         );
@@ -432,55 +431,55 @@ describe("short-circuit tasks", () => {
 
 describe("trigger tasks", () => {
     it("defaults waitForCompletion", () => {
-        const definition = trigger("start", { dagName: "child" });
+        const definition = trigger("start", { dagId: "child" });
 
         expectTypeOf(definition).toEqualTypeOf<
             TriggerTaskDefinition<"start">
         >();
         expect(definition.kind).toBe(TASK_KIND_ENUM.Trigger);
-        expect(definition.dagName).toBe("child");
+        expect(definition.dagId).toBe("child");
         expect(definition.waitForCompletion).toBeFalsy();
     });
 
     it("supports waiting for the target DAG", () => {
         const definition = trigger("start", {
-            dagName: "child",
+            dagId: "child",
             waitForCompletion: true,
         });
 
         expect(definition.waitForCompletion).toBeTruthy();
     });
 
-    it("rejects an empty target DAG name", () => {
-        expect(() => trigger("start", { dagName: "   " })).toThrow(
-            "Trigger DAG name cannot be empty"
+    it("rejects an empty target DAG id", () => {
+        expect(() => trigger("start", { dagId: "   " })).toThrow(
+            "Trigger DAG id cannot be empty"
         );
     });
 
-    it("rejects an empty target DAG name before validating the task name", () => {
-        expect(() => trigger("bad name", { dagName: "" })).toThrow(
-            "Trigger DAG name cannot be empty"
+    it("rejects an empty target DAG id before validating the task id", () => {
+        expect(() => trigger("bad id", { dagId: "" })).toThrow(
+            "Trigger DAG id cannot be empty"
         );
     });
 
-    it("keeps the target DAG name verbatim", () => {
-        expect(trigger("start", { dagName: "  child  " }).dagName).toBe(
+    it("keeps the target DAG id verbatim", () => {
+        expect(trigger("start", { dagId: "  child  " }).dagId).toBe(
             "  child  "
         );
     });
 
     it("records an explicit false wait flag", () => {
         const definition = trigger("start", {
-            dagName: "child",
+            dagId: "child",
             waitForCompletion: false,
         });
 
         expect(definition.waitForCompletion).toBeFalsy();
     });
 
-    it("keeps metadata and trims the task name", () => {
+    it("keeps metadata and trims the task id", () => {
         const definition = trigger("  start  ", {
-            dagName: "child",
+            dagId: "child",
             description: "Kick off the child DAG",
             config: { retries: 2 },
             triggerRule: TRIGGER_RULE_ENUM.OneFailed,
@@ -488,8 +487,8 @@ describe("trigger tasks", () => {
 
         expect(definition).toMatchObject({
             kind: TASK_KIND_ENUM.Trigger,
-            name: "start",
-            dagName: "child",
+            id: "start",
+            dagId: "child",
             waitForCompletion: false,
             description: "Kick off the child DAG",
             config: { retries: 2 },
@@ -497,42 +496,34 @@ describe("trigger tasks", () => {
         });
     });
 
-    it("rejects a same-name trigger targeting a different DAG", () => {
-        const dag = createDAG("kinds").chain(
-            trigger("start", { dagName: "a" })
-        );
+    it("rejects a same-id trigger targeting a different DAG", () => {
+        const dag = createDAG("kinds").chain(trigger("start", { dagId: "a" }));
 
-        expect(() => dag.chain(trigger("start", { dagName: "b" }))).toThrow(
+        expect(() => dag.chain(trigger("start", { dagId: "b" }))).toThrow(
             'Task "start" already exists in DAG "kinds"'
         );
         expect(dag.tasks.size).toBe(1);
     });
 
-    it("rejects a same-name trigger whose wait flag differs", () => {
-        const dag = createDAG("kinds").chain(
-            trigger("start", { dagName: "a" })
-        );
+    it("rejects a same-id trigger whose wait flag differs", () => {
+        const dag = createDAG("kinds").chain(trigger("start", { dagId: "a" }));
 
         expect(() =>
-            dag.chain(
-                trigger("start", { dagName: "a", waitForCompletion: true })
-            )
+            dag.chain(trigger("start", { dagId: "a", waitForCompletion: true }))
         ).toThrow('Task "start" already exists in DAG "kinds"');
         expect(dag.tasks.size).toBe(1);
     });
 
-    it("accepts a same-name trigger with identical target and wait flag", () => {
+    it("accepts a same-id trigger with identical target and wait flag", () => {
         const dag = createDAG("kinds")
-            .chain(trigger("start", { dagName: "a" }))
-            .chain(
-                trigger("start", { dagName: "a", waitForCompletion: false })
-            );
+            .chain(trigger("start", { dagId: "a" }))
+            .chain(trigger("start", { dagId: "a", waitForCompletion: false }));
 
         expect(dag.tasks.size).toBe(1);
     });
 });
 
-describe("callback identity", () => {
+describe("task id conflicts", () => {
     const callableCases: readonly (readonly [
         string,
         (value: string) => AnyTaskDefinition,
@@ -567,7 +558,7 @@ describe("callback identity", () => {
             const dag = createDAG("capture").chain(build("first"));
 
             expect(() => dag.chain(build("second"))).toThrow(
-                /different callback instance/u
+                /different behavior/u
             );
             expect(dag.tasks.size).toBe(1);
         }
@@ -578,7 +569,7 @@ describe("callback identity", () => {
 
         expect(() =>
             dag.chain([makeCapturedTask("first"), makeCapturedTask("second")])
-        ).toThrow(/different callback instance/u);
+        ).toThrow(/different behavior/u);
         expect(dag.tasks.size).toBe(0);
     });
 
@@ -589,7 +580,7 @@ describe("callback identity", () => {
 
         expect(() =>
             dag.chain(task("sync", { fn: boundTarget.bind(null, "orders") }))
-        ).toThrow(/different callback instance/u);
+        ).toThrow(/different behavior/u);
         expect(dag.tasks.size).toBe(1);
     });
 
@@ -600,18 +591,16 @@ describe("callback identity", () => {
 
         expect(() =>
             dag.chain(task("sync", { fn: boundTarget.bind(null, "customers") }))
-        ).toThrow(/different callback instance/u);
+        ).toThrow(/different behavior/u);
         expect(dag.tasks.size).toBe(1);
     });
 
-    it("still deduplicates declarative kinds with equal behavior sources", () => {
+    it("reuses declarative kinds with equal behavior", () => {
         const dag = createDAG("declarative")
             .chain(delay("wait", { durationMs: 10, description: "first" }))
             .chain(delay("wait", { durationMs: 10, description: "second" }))
-            .chain(trigger("start", { dagName: "child", description: "first" }))
-            .chain(
-                trigger("start", { dagName: "child", description: "second" })
-            );
+            .chain(trigger("start", { dagId: "child", description: "first" }))
+            .chain(trigger("start", { dagId: "child", description: "second" }));
 
         expect(dag.tasks.size).toBe(2);
         expect(dag.getTask("wait")?.description).toBe("first");
@@ -625,7 +614,7 @@ const kindDefinitions = () => [
     delay("wait", { durationMs: 1 }),
     branch("route", { choose: () => "left" }),
     shortCircuit("gate", { condition: () => true }),
-    trigger("start", { dagName: "child" }),
+    trigger("start", { dagId: "child" }),
 ];
 
 describe("shared metadata", () => {
@@ -646,27 +635,20 @@ describe("shared metadata", () => {
         }
     });
 
-    // Metadata is excluded from the behavior source, so it never forks identity.
+    // Metadata is not behavior, so changing it reuses the registered task.
     it("ignores metadata differences when matching a registered task", () => {
-        const dag = createDAG("kinds");
+        const definitions = kindDefinitions();
+        const dag = createDAG("kinds").chain(definitions);
 
-        for (const definition of kindDefinitions()) {
-            dag.chain(definition);
-        }
-
-        const withMetadata = createDAG("kinds");
-
-        for (const definition of kindDefinitions()) {
-            expect(dag.getTask(definition.name)?.id).toBe(
-                withMetadata
-                    .chain({
-                        ...definition,
-                        description: "extra",
-                        config: { retries: 1 },
-                        triggerRule: TRIGGER_RULE_ENUM.OneFailed,
-                    })
-                    .getTask(definition.name)?.id
-            );
+        for (const definition of definitions) {
+            expect(() =>
+                dag.chain({
+                    ...definition,
+                    description: "extra",
+                    config: { retries: 1 },
+                    triggerRule: TRIGGER_RULE_ENUM.OneFailed,
+                })
+            ).not.toThrow();
         }
 
         dag.chain(
@@ -716,7 +698,7 @@ describe("DAG integration", () => {
             delay("wait", { durationMs: 25 }),
             branch("route", { choose: () => "left" }),
             shortCircuit("gate", { condition: () => true }),
-            trigger("start", { dagName: "child", waitForCompletion: true })
+            trigger("start", { dagId: "child", waitForCompletion: true })
         );
 
         expect(
@@ -733,30 +715,30 @@ describe("DAG integration", () => {
         expect(dag.toJSON().tasks).toStrictEqual([
             expect.objectContaining({
                 kind: TASK_KIND_ENUM.Task,
-                name: "extract",
+                id: "extract",
             }),
             expect.objectContaining({
                 kind: TASK_KIND_ENUM.Sensor,
-                name: "ready",
+                id: "ready",
                 pokeIntervalMs: 5000,
             }),
             expect.objectContaining({
                 kind: TASK_KIND_ENUM.Delay,
-                name: "wait",
+                id: "wait",
                 durationMs: 25,
             }),
             expect.objectContaining({
                 kind: TASK_KIND_ENUM.Branch,
-                name: "route",
+                id: "route",
             }),
             expect.objectContaining({
                 kind: TASK_KIND_ENUM.ShortCircuit,
-                name: "gate",
+                id: "gate",
             }),
             expect.objectContaining({
                 kind: TASK_KIND_ENUM.Trigger,
-                name: "start",
-                dagName: "child",
+                id: "start",
+                dagId: "child",
                 waitForCompletion: true,
             }),
         ]);
@@ -783,7 +765,7 @@ describe("DAG integration", () => {
             delay("wait", { durationMs: 25 }),
             branch("route", { choose: () => "left" }),
             shortCircuit("gate", { condition: () => true }),
-            trigger("start", { dagName: "child", waitForCompletion: true })
+            trigger("start", { dagId: "child", waitForCompletion: true })
         );
 
         const snapshots = dag
@@ -794,34 +776,30 @@ describe("DAG integration", () => {
         expect(snapshots).toStrictEqual(dag.toJSON().tasks);
     });
 
-    it("gives every kind a distinct task ID for the same name", () => {
+    it("rejects reusing one id across kinds", () => {
         const definitions = [
             task("shared", { fn: () => 0 }),
             sensor("shared", { predicate: () => true }),
             delay("shared", { durationMs: 1 }),
             branch("shared", { choose: () => "left" }),
             shortCircuit("shared", { condition: () => true }),
-            trigger("shared", { dagName: "child" }),
+            trigger("shared", { dagId: "child" }),
         ];
 
-        const ids = definitions.map(
-            (definition) =>
-                createDAG("ids").chain(definition).getTask("shared")?.id
+        expect(() => createDAG("ids").chain(definitions)).toThrow(
+            /already exists in DAG "ids" with different behavior/u
         );
-
-        expect(ids).toHaveLength(6);
-        expect(new Set(ids).size).toBe(6);
     });
 
-    // Identity is scoped to name plus behavior source, not to the DAG.
-    it("reuses one definition's task ID across DAGs for every kind", () => {
+    // The id is declared by the definition, so it is the same in every DAG.
+    it("reuses one definition's task id across DAGs for every kind", () => {
         const definitions = [
             task("extract", { fn: () => 0 }),
             sensor("ready", { predicate: () => true }),
             delay("wait", { durationMs: 1 }),
             branch("route", { choose: () => "left" }),
             shortCircuit("gate", { condition: () => true }),
-            trigger("start", { dagName: "child" }),
+            trigger("start", { dagId: "child" }),
         ];
 
         const first = createDAG("first").chain(definitions);
@@ -830,8 +808,9 @@ describe("DAG integration", () => {
         expect(first.tasks.size).toBe(6);
         expect(second.tasks.size).toBe(6);
 
-        for (const { name } of definitions) {
-            expect(first.getTask(name)?.id).toBe(second.getTask(name)?.id);
+        for (const definition of definitions) {
+            expect(first.getTask(definition.id)).toBeDefined();
+            expect(second.getTask(definition.id)).toBeDefined();
         }
     });
 
@@ -841,10 +820,10 @@ describe("DAG integration", () => {
             sensor("ready", { predicate: () => true }),
             delay("wait", { durationMs: 25 }),
             shortCircuit("gate", { condition: () => true }),
-            trigger("start", { dagName: "child" })
+            trigger("start", { dagId: "child" })
         );
 
-        expect(dag.topologicalSort().map(({ name }) => name)).toStrictEqual([
+        expect(dag.topologicalSort().map(({ id }) => id)).toStrictEqual([
             "extract",
             "ready",
             "wait",
@@ -860,7 +839,7 @@ describe("DAG integration", () => {
     it("wires a fan-out and fan-in across different kinds", () => {
         const gate = shortCircuit("gate", { condition: () => true });
         const route = branch("route", { choose: () => "left" });
-        const start = trigger("start", { dagName: "child" });
+        const start = trigger("start", { dagId: "child" });
 
         const dag = createDAG("fan").chain(
             task("extract", { fn: () => 0 }),
@@ -870,13 +849,11 @@ describe("DAG integration", () => {
 
         const extract = dag.getTask("extract");
 
-        const downstream = [...(extract?.downstream ?? [])].map(
-            ({ name }) => name
-        );
+        const downstream = [...(extract?.downstream ?? [])].map(({ id }) => id);
 
         expect(downstream).toStrictEqual(["gate", "route"]);
         expect(
-            [...(dag.getTask("start")?.upstream ?? [])].map(({ name }) => name)
+            [...(dag.getTask("start")?.upstream ?? [])].map(({ id }) => id)
         ).toStrictEqual(["gate", "route"]);
     });
 });

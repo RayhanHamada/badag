@@ -1,5 +1,5 @@
 /**
- * Airflow's `validate_key` convention, shared by DAG ids and task names.
+ * Airflow's `validate_key` convention, shared by DAG ids and task ids.
  *
  * Airflow accepts Unicode letters and numbers, underscores, dots, and dashes,
  * and caps the key at 250 characters.

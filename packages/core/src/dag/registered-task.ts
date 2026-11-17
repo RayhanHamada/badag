@@ -1,6 +1,4 @@
-import { hashTaskId } from "../hash/hash";
-import { taskBehaviorSource } from "../task/definition/identity";
-import { assertTaskName } from "../task/definition/task-name";
+import { assertTaskId } from "../task/definition/task-id";
 import type { TaskKind } from "../task/kind";
 import type { TriggerRule } from "../task/trigger-rule";
 import { DEFAULT_TRIGGER_RULE } from "../task/trigger-rule";
@@ -64,15 +62,11 @@ export function stateOf(task: DAGTask): TaskState {
 /**
  * A task registered in a DAG.
  */
-export class DAGTask<TaskName extends string = string> {
+export class DAGTask<TaskId extends string = string> {
     /**
-     * Content-derived task ID assigned when the task is registered.
+     * Unique id within the owning DAG.
      */
-    readonly id: string;
-    /**
-     * Unique name within the owning DAG.
-     */
-    readonly name: TaskName;
+    readonly id: TaskId;
     /**
      * Optional human-readable description.
      */
@@ -96,21 +90,20 @@ export class DAGTask<TaskName extends string = string> {
     readonly definition: RegisteredTaskDefinition;
 
     constructor(dag: DAG, definition: AnyTaskDefinition) {
-        assertTaskName(definition.name);
+        assertTaskId(definition.id);
         TASK_STATE.set(this, {
             dag,
             downstream: new Set(),
             upstream: new Set(),
         });
-        this.id = hashTaskId(definition.name, taskBehaviorSource(definition));
-        // SAFETY: DAG.getTask() types handles with the definition's literal name.
-        this.name = definition.name as TaskName;
+        // SAFETY: DAG.getTask() types handles with the definition's literal id.
+        this.id = definition.id as TaskId;
         this.description = definition.description;
         this.config = definition.config;
         this.triggerRule = definition.triggerRule ?? DEFAULT_TRIGGER_RULE;
         this.kind = definition.kind;
         // SAFETY: callbacks are callable with the task context; the registered
-        // view widens their literal name parameter to string.
+        // view widens their literal id parameter to string.
         this.definition = definition as RegisteredTaskDefinition;
     }
 
@@ -131,10 +124,10 @@ export class DAGTask<TaskName extends string = string> {
     /**
      * Return a JSON-safe snapshot of this task.
      *
-     * Same shape as one entry of `DAG.toJSON().tasks`: task ID, name, kind,
-     * description, trigger rule, config, serializable kind-specific fields,
-     * and edges listed by task name. Functions are omitted.
-     * `JSON.stringify(task)` calls this method.
+     * Same shape as one entry of `DAG.toJSON().tasks`: id, kind, description,
+     * trigger rule, config, serializable kind-specific fields, and edges
+     * listed by task id. Functions are omitted. `JSON.stringify(task)` calls
+     * this method.
      */
     toJSON(): TaskJson {
         return serializeTask(this);

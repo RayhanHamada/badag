@@ -8,11 +8,11 @@ import type {
     TaskPayloadOf,
     TaskProducedOf,
     TaskSchemas,
-    TrimTaskName,
+    TrimTaskId,
 } from "./base";
 
 /**
- * Input to the regular task factory after the name.
+ * Input to the regular task factory after the id.
  */
 export interface TaskParamInput<
     Fn extends AnyTaskFn = AnyTaskFn,
@@ -27,14 +27,14 @@ export interface TaskParamInput<
 }
 
 /**
- * A regular task definition; ids are assigned to registered `DAGTask` handles.
+ * A regular task definition.
  */
 export interface TaskParamOutput<
-    Name extends string,
-    Fn extends AnyTaskFn = TaskFn<Name>,
+    Id extends string,
+    Fn extends AnyTaskFn = TaskFn<Id>,
     Input extends AnySchema = undefined,
     Output extends AnySchema = undefined,
-> extends TaskDefinitionBase<Name, typeof TASK_KIND_ENUM.Task, Input, Output> {
+> extends TaskDefinitionBase<Id, typeof TASK_KIND_ENUM.Task, Input, Output> {
     /**
      * Task callback, invoked with a task context.
      */
@@ -44,24 +44,20 @@ export interface TaskParamOutput<
 /**
  * Call signature of `task()`.
  *
- * The name is trimmed; the returned definition has a normalized
- * `triggerRule` and no task ID. `ctx.payload` is typed from `input`, and the
- * callback result is checked against `output`.
+ * The id is trimmed; the returned definition has a normalized `triggerRule`.
+ * `ctx.payload` is typed from `input`, and the callback result is checked
+ * against `output`.
  */
 export type CreateTask = <
-    const Name extends string,
+    const Id extends string,
     Input extends AnySchema = undefined,
     Output extends AnySchema = undefined,
     Fn extends TaskFn<
-        TrimTaskName<Name>,
+        TrimTaskId<Id>,
         TaskPayloadOf<Input>,
         TaskProducedOf<Output>
-    > = TaskFn<
-        TrimTaskName<Name>,
-        TaskPayloadOf<Input>,
-        TaskProducedOf<Output>
-    >,
+    > = TaskFn<TrimTaskId<Id>, TaskPayloadOf<Input>, TaskProducedOf<Output>>,
 >(
-    name: Name,
+    id: Id,
     params: TaskParamInput<Fn, Input, Output>
-) => TaskParamOutput<TrimTaskName<Name>, Fn, Input, Output>;
+) => TaskParamOutput<TrimTaskId<Id>, Fn, Input, Output>;

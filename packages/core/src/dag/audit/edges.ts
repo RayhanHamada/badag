@@ -26,8 +26,8 @@ export function findEdgeViolations(
             if (downstream === task) {
                 violations.push({
                     code: DAG_VIOLATION_ENUM.SelfEdge,
-                    message: `Task "${task.name}" depends on itself`,
-                    subjects: [task.name],
+                    message: `Task "${task.id}" depends on itself`,
+                    subjects: [task.id],
                 });
                 continue;
             }
@@ -35,8 +35,8 @@ export function findEdgeViolations(
             if (!registered.has(downstream)) {
                 violations.push({
                     code: DAG_VIOLATION_ENUM.ForeignEdge,
-                    message: `Edge "${task.name}" -> "${downstream.name}" crosses DAG boundaries; "${downstream.name}" is not registered in DAG "${dagId}"`,
-                    subjects: [task.name, downstream.name],
+                    message: `Edge "${task.id}" -> "${downstream.id}" crosses DAG boundaries; "${downstream.id}" is not registered in DAG "${dagId}"`,
+                    subjects: [task.id, downstream.id],
                 });
                 continue;
             }
@@ -44,8 +44,8 @@ export function findEdgeViolations(
             if (!downstream.upstream.has(task)) {
                 violations.push({
                     code: DAG_VIOLATION_ENUM.InconsistentEdge,
-                    message: `Edge "${task.name}" -> "${downstream.name}" is recorded on only one side`,
-                    subjects: [task.name, downstream.name],
+                    message: `Edge "${task.id}" -> "${downstream.id}" is recorded on only one side`,
+                    subjects: [task.id, downstream.id],
                 });
             }
         }
@@ -57,8 +57,8 @@ export function findEdgeViolations(
                 if (!task.downstream.has(task)) {
                     violations.push({
                         code: DAG_VIOLATION_ENUM.SelfEdge,
-                        message: `Task "${task.name}" depends on itself`,
-                        subjects: [task.name],
+                        message: `Task "${task.id}" depends on itself`,
+                        subjects: [task.id],
                     });
                 }
 
@@ -68,8 +68,8 @@ export function findEdgeViolations(
             if (!registered.has(upstream)) {
                 violations.push({
                     code: DAG_VIOLATION_ENUM.ForeignEdge,
-                    message: `Edge "${upstream.name}" -> "${task.name}" crosses DAG boundaries; "${upstream.name}" is not registered in DAG "${dagId}"`,
-                    subjects: [upstream.name, task.name],
+                    message: `Edge "${upstream.id}" -> "${task.id}" crosses DAG boundaries; "${upstream.id}" is not registered in DAG "${dagId}"`,
+                    subjects: [upstream.id, task.id],
                 });
                 continue;
             }
@@ -77,8 +77,8 @@ export function findEdgeViolations(
             if (!upstream.downstream.has(task)) {
                 violations.push({
                     code: DAG_VIOLATION_ENUM.InconsistentEdge,
-                    message: `Edge "${upstream.name}" -> "${task.name}" is recorded on only one side`,
-                    subjects: [upstream.name, task.name],
+                    message: `Edge "${upstream.id}" -> "${task.id}" is recorded on only one side`,
+                    subjects: [upstream.id, task.id],
                 });
             }
         }

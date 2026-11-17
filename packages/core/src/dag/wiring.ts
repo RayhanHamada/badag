@@ -68,7 +68,7 @@ function assertTaskLike(value: TaskLike, dagId: string): void {
     if (
         value !== null &&
         Object.hasOwn(value, "kind") &&
-        Object.hasOwn(value, "name")
+        Object.hasOwn(value, "id")
     ) {
         return;
     }

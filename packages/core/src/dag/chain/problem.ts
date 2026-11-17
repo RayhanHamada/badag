@@ -15,7 +15,7 @@ import type { AddChainEdges, FindChainCycle } from "./edges";
 import type {
     ChainGroup,
     FlattenGroups,
-    HasBroadNames,
+    HasBroadIds,
     TooManyGroups,
 } from "./shared";
 import type { RegisterAll } from "./signatures";
@@ -30,7 +30,7 @@ export type ParseProblem<
     Branches,
     Operands extends readonly ChainGroup[],
 > =
-    HasBroadNames<Operands> extends true
+    HasBroadIds<Operands> extends true
         ? true
         : TooManyGroups<Operands> extends true
           ? true
@@ -58,7 +58,7 @@ export type ChainProblem<
     Branches,
     Groups extends readonly ChainGroup[],
 > =
-    HasBroadNames<Groups> extends true
+    HasBroadIds<Groups> extends true
         ? true
         : TooManyGroups<Groups> extends true
           ? true

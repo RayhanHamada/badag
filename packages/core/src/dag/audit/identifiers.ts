@@ -1,19 +1,19 @@
-/** Audit the DAG id and registered task names against Airflow's convention. */
+/** Audit the DAG id and registered task ids against Airflow's convention. */
 
-import { taskNameError } from "../../task/definition/task-name";
+import { taskIdError } from "../../task/definition/task-id";
 import { dagIdError } from "../dag-id";
 import type { DAGTask } from "../registered-task";
 import { DAG_VIOLATION_ENUM } from "./violation";
 import type { DAGViolation } from "./violation";
 
 /**
- * Report a DAG id or task name that does not follow Airflow's `validate_key`
+ * Report a DAG id or task id that does not follow Airflow's `validate_key`
  * convention.
  *
  * A DAG id is stored verbatim, so an invalid id is reported here. Registration
- * rejects an invalid task name first, so that finding only appears in graphs
- * restored or assembled outside the public methods. The id is reported before
- * task names.
+ * rejects an invalid task id first, so that finding only appears in graphs
+ * restored or assembled outside the public methods. The DAG id is reported
+ * before task ids.
  */
 export function findIdentifierViolations(
     dagId: string,
@@ -31,13 +31,13 @@ export function findIdentifierViolations(
     }
 
     for (const task of tasks) {
-        const nameProblem = taskNameError(task.name);
+        const idProblem = taskIdError(task.id);
 
-        if (nameProblem !== undefined) {
+        if (idProblem !== undefined) {
             violations.push({
-                code: DAG_VIOLATION_ENUM.InvalidTaskName,
-                message: nameProblem,
-                subjects: [task.name],
+                code: DAG_VIOLATION_ENUM.InvalidTaskId,
+                message: idProblem,
+                subjects: [task.id],
             });
         }
     }

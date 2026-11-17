@@ -4,12 +4,12 @@ import type {
     TaskDefinitionBase,
     TaskMetadata,
     TaskSchemas,
-    TrimTaskName,
+    TrimTaskId,
 } from "./base";
-import type { DAGName } from "./dag-name";
+import type { DAGId } from "./dag-id";
 
 /**
- * Input to the trigger factory after the name.
+ * Input to the trigger factory after the id.
  */
 export interface TriggerTaskInput<
     Input extends AnySchema = undefined,
@@ -17,9 +17,9 @@ export interface TriggerTaskInput<
 >
     extends TaskMetadata, TaskSchemas<Input, Output> {
     /**
-     * Name of the DAG to trigger; narrowed by `DAGNameRegistry`.
+     * ID of the DAG to trigger; narrowed by `DAGIdRegistry`.
      */
-    readonly dagName: DAGName;
+    readonly dagId: DAGId;
     /**
      * Whether the trigger waits for the target DAG to finish; defaults to false.
      */
@@ -30,19 +30,14 @@ export interface TriggerTaskInput<
  * A trigger task definition.
  */
 export interface TriggerTaskDefinition<
-    Name extends string = string,
+    Id extends string = string,
     Input extends AnySchema = undefined,
     Output extends AnySchema = undefined,
-> extends TaskDefinitionBase<
-    Name,
-    typeof TASK_KIND_ENUM.Trigger,
-    Input,
-    Output
-> {
+> extends TaskDefinitionBase<Id, typeof TASK_KIND_ENUM.Trigger, Input, Output> {
     /**
-     * Name of the DAG to trigger; narrowed by `DAGNameRegistry`.
+     * ID of the DAG to trigger; narrowed by `DAGIdRegistry`.
      */
-    readonly dagName: DAGName;
+    readonly dagId: DAGId;
     /**
      * Whether the trigger waits for the target DAG to finish.
      */
@@ -53,10 +48,10 @@ export interface TriggerTaskDefinition<
  * Call signature of `trigger()`.
  */
 export type CreateTrigger = <
-    const Name extends string,
+    const Id extends string,
     Input extends AnySchema = undefined,
     Output extends AnySchema = undefined,
 >(
-    name: Name,
+    id: Id,
     input: TriggerTaskInput<Input, Output>
-) => TriggerTaskDefinition<TrimTaskName<Name>, Input, Output>;
+) => TriggerTaskDefinition<TrimTaskId<Id>, Input, Output>;

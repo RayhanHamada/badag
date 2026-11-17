@@ -1,8 +1,4 @@
-import { hashTaskId } from "../hash/hash";
-import {
-    taskBehaviorCallback,
-    taskBehaviorSource,
-} from "../task/definition/identity";
+import { sameTaskBehavior } from "../task/definition/identity";
 import { findViolations } from "./audit/audit";
 import type { DAGViolation } from "./audit/violation";
 import { assertBranchWiring } from "./branch-routing";
@@ -23,8 +19,6 @@ import type { DAGJson } from "./serialization";
 import { sortTopologically } from "./topological-sort";
 import { parseWiringExpression } from "./wiring";
 import type { WiringOperand } from "./wiring";
-
-type TaskNameIndex = string;
 
 type TaskIdIndex = string;
 
@@ -48,10 +42,9 @@ export class DAG<
 > {
     readonly #dagId: DagId;
     readonly #metadata: DAGMetadata;
-    // Same task objects, two indexes: name drives public lookup and order;
-    // task ID drives identity and duplicate detection.
-    readonly #tasks = new Map<TaskNameIndex, DAGTask>();
-    readonly #tasksById = new Map<TaskIdIndex, DAGTask>();
+    // Keyed by task id, the only task identifier; insertion order is
+    // registration order.
+    readonly #tasks = new Map<TaskIdIndex, DAGTask>();
 
     /**
      * Store the DAG id and metadata verbatim.
@@ -79,23 +72,21 @@ export class DAG<
     }
 
     /**
-     * Registered tasks keyed by task name, in registration order.
+     * Registered tasks keyed by task id, in registration order.
      */
-    get tasks(): ReadonlyMap<TaskNameIndex, DAGTask> {
+    get tasks(): ReadonlyMap<TaskIdIndex, DAGTask> {
         return this.#tasks;
     }
 
     /**
-     * Look up a registered task by name.
+     * Look up a registered task by id.
      *
-     * The returned task is typed with the queried name: tasks are keyed by
-     * their own `name`, so any hit carries that literal type.
+     * The returned task is typed with the queried id: tasks are keyed by their
+     * own `id`, so any hit carries that literal type.
      */
-    getTask<const Name extends TaskNameIndex>(
-        name: Name
-    ): DAGTask<Name> | undefined {
-        // SAFETY: #tasks is keyed by task.name, so a hit is always a DAGTask<Name>.
-        return this.#tasks.get(name) as DAGTask<Name> | undefined;
+    getTask<const Id extends TaskIdIndex>(id: Id): DAGTask<Id> | undefined {
+        // SAFETY: #tasks is keyed by task.id, so a hit is always a DAGTask<Id>.
+        return this.#tasks.get(id) as DAGTask<Id> | undefined;
     }
 
     /**
@@ -292,9 +283,9 @@ export class DAG<
      *
      * Findings are ordered identifiers, edges, cycles, branch routing, then
      * triggers, and `subjects` names the values involved. An empty array means
-     * the DAG id and every task name follow Airflow's `validate_key`
-     * convention, the graph is acyclic, internally consistent, and every
-     * branch routes exactly to its declared branches.
+     * the DAG id and every task id follow Airflow's `validate_key` convention,
+     * the graph is acyclic, internally consistent, and every branch routes
+     * exactly to its declared branches.
      */
     validate(): readonly DAGViolation[] {
         return findViolations(this.#dagId, [...this.#tasks.values()]);
@@ -311,11 +302,11 @@ export class DAG<
     /**
      * Return a JSON-safe snapshot of the graph.
      *
-     * The snapshot keeps the DAG id and description; tasks keep their task
-     * IDs, names, kinds, descriptions, trigger rules, configs, and
-     * serializable kind-specific fields; edges are listed by task name.
-     * Functions are omitted. `JSON.stringify(dag)` calls this method, so
-     * `config` values must be JSON-serializable for that conversion.
+     * The snapshot keeps the DAG id and description; tasks keep their ids,
+     * kinds, descriptions, trigger rules, configs, and serializable
+     * kind-specific fields; edges are listed by task id. Functions are
+     * omitted. `JSON.stringify(dag)` calls this method, so `config` values
+     * must be JSON-serializable for that conversion.
      */
     toJSON(): DAGJson {
         return serializeDAG(this.#dagId, this.#metadata, [
@@ -324,7 +315,7 @@ export class DAG<
     }
 
     #assertHandleBelongs(task: TaskLike): void {
-        if (task instanceof DAGTask && this.#tasksById.get(task.id) !== task) {
+        if (task instanceof DAGTask && this.#tasks.get(task.id) !== task) {
             throw new Error("Both tasks must belong to this DAG");
         }
     }
@@ -332,110 +323,74 @@ export class DAG<
     /**
      * Register unseen definitions as one batch.
      *
-     * Validation runs over the whole batch before any task is inserted, and a
-     * definition with the same task ID is reused.
+     * Validation runs over the whole batch before any task is inserted. A
+     * definition whose id is already registered is reused when it describes
+     * the same behavior; otherwise the id is a conflict.
      */
     #registerDefinitions(
         definitions: readonly TaskDefinition[]
     ): readonly DAGTask[] {
-        const pendingNames = new Set<string>();
         const pendingById = new Map<string, DAGTask>();
         const pending: DAGTask[] = [];
 
         for (const definition of definitions) {
-            // SAFETY: task factories type kind-specific callbacks against this name.
+            // SAFETY: task factories type kind-specific callbacks against this id.
             const candidate = new DAGTask(this, definition);
 
-            const existing = this.#tasksById.get(candidate.id);
+            const existing =
+                this.#tasks.get(candidate.id) ?? pendingById.get(candidate.id);
 
             if (existing !== undefined) {
-                if (existing.name !== candidate.name) {
-                    throw new Error(`Task ID "${candidate.id}" already exists`);
-                }
-
-                this.#assertDuplicateCallback(existing, candidate);
+                this.#assertSameTask(existing, candidate);
 
                 continue;
             }
 
-            const pendingTask = pendingById.get(candidate.id);
-
-            if (pendingTask !== undefined) {
-                if (pendingTask.name !== candidate.name) {
-                    throw new Error(`Task ID "${candidate.id}" already exists`);
-                }
-
-                this.#assertDuplicateCallback(pendingTask, candidate);
-
-                continue;
-            }
-
-            if (
-                this.#tasks.has(candidate.name) ||
-                pendingNames.has(candidate.name)
-            ) {
-                throw new Error(
-                    `Task "${candidate.name}" already exists in DAG "${this.#dagId}"`
-                );
-            }
-
-            pendingNames.add(candidate.name);
             pendingById.set(candidate.id, candidate);
             pending.push(candidate);
         }
 
         for (const task of pending) {
-            this.#tasks.set(task.name, task);
-            this.#tasksById.set(task.id, task);
+            this.#tasks.set(task.id, task);
         }
 
         return pending;
     }
 
     /**
-     * Reject a duplicate definition whose behavior source matches but whose
-     * callback instance does not.
+     * Reject a definition that reuses a task id with different behavior.
      *
-     * Callback source text omits captured values, so two distinct callbacks can
-     * share a task ID while behaving differently. Treating one as a duplicate
-     * would drop it without a trace; the caller must reuse the callback or give
-     * the task a distinct name.
+     * The id is the task's only identifier, so a second, different definition
+     * cannot be distinguished from the first; accepting it would silently drop
+     * behavior. Metadata is ignored, so the first registration's metadata is
+     * kept.
      */
-    #assertDuplicateCallback(existing: DAGTask, candidate: DAGTask): void {
-        const existingCallback = taskBehaviorCallback(existing.definition);
-        const candidateCallback = taskBehaviorCallback(candidate.definition);
-
-        if (existingCallback === candidateCallback) {
+    #assertSameTask(existing: DAGTask, candidate: DAGTask): void {
+        if (sameTaskBehavior(existing.definition, candidate.definition)) {
             return;
         }
 
         throw new Error(
-            `Task "${candidate.name}" in DAG "${this.#dagId}" has the same callback source as an existing definition but a different callback instance; captured values are not part of task identity, so a duplicate registration would silently drop the task. Reuse the same callback or give the task a distinct name`
+            `Task "${candidate.id}" already exists in DAG "${this.#dagId}" with different behavior; reuse the same definition or choose a different task id`
         );
     }
 
     /** Remove tasks inserted by a failed batch; reused tasks are untouched. */
     #removeTasks(tasks: readonly DAGTask[]): void {
         for (const task of tasks) {
-            if (this.#tasksById.get(task.id) === task) {
-                this.#tasks.delete(task.name);
-                this.#tasksById.delete(task.id);
+            if (this.#tasks.get(task.id) === task) {
+                this.#tasks.delete(task.id);
             }
         }
     }
 
-    /** Resolve a handle or definition to its canonical task by task ID. */
+    /** Resolve a handle or definition to its canonical task by task id. */
     #lookup(task: TaskLike): DAGTask {
-        const id =
-            task instanceof DAGTask
-                ? task.id
-                : hashTaskId(task.name, taskBehaviorSource(task));
-
-        const registered = this.#tasksById.get(id);
+        const registered = this.#tasks.get(task.id);
 
         if (registered === undefined) {
             throw new Error(
-                `Task "${task.name}" is not registered in DAG "${this.#dagId}"`
+                `Task "${task.id}" is not registered in DAG "${this.#dagId}"`
             );
         }
 
@@ -481,7 +436,7 @@ export class DAG<
 
                     if (this.#hasPathIn(planned, to, from)) {
                         throw new Error(
-                            `Dependency "${from.name}" -> "${to.name}" creates a cycle`
+                            `Dependency "${from.id}" -> "${to.id}" creates a cycle`
                         );
                     }
 

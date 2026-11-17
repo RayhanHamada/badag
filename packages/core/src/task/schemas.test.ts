@@ -3,7 +3,6 @@ import * as v from "valibot";
 import { describe, expect, expectTypeOf, it } from "vitest";
 
 import { createDAG } from "../dag/dag";
-import { taskBehaviorSource } from "./definition/identity";
 import { branch } from "./factories/branch";
 import { delay } from "./factories/delay";
 import { sensor } from "./factories/sensor";
@@ -26,6 +25,8 @@ const warehouseOutput = v.object({
     rows: v.number(),
 });
 
+const chooseUS = () => "us" as const;
+
 describe("input and output schemas", () => {
     it("types ctx.payload from an input schema", () => {
         const definition = task("sync", {
@@ -35,15 +36,13 @@ describe("input and output schemas", () => {
 
         expectTypeOf(definition.fn).toEqualTypeOf<
             (ctx: {
-                readonly id: string;
-                readonly name: "sync";
+                readonly id: "sync";
                 readonly payload: { warehouseId: string; rows: number };
             }) => number
         >();
         expect(
             definition.fn({
-                id: "sync-id",
-                name: "sync",
+                id: "sync",
                 payload: { warehouseId: "w1", rows: 21 },
             })
         ).toBe(42);
@@ -54,13 +53,12 @@ describe("input and output schemas", () => {
 
         expectTypeOf(definition.fn).toEqualTypeOf<
             (ctx: {
-                readonly id: string;
-                readonly name: "plain";
+                readonly id: "plain";
                 readonly payload: undefined;
             }) => undefined
         >();
         expect(
-            definition.fn({ id: "plain-id", name: "plain", payload: undefined })
+            definition.fn({ id: "plain", payload: undefined })
         ).toBeUndefined();
     });
 
@@ -137,22 +135,19 @@ describe("input and output schemas", () => {
 
         expect(
             sensorDefinition.predicate({
-                id: "ready-id",
-                name: "ready",
+                id: "ready",
                 payload: { warehouseId: "w1", rows: 3 },
             })
         ).toBeTruthy();
         expect(
             branchDefinition.choose({
-                id: "route-id",
-                name: "route",
+                id: "route",
                 payload: { warehouseId: "w1", rows: 0 },
             })
         ).toBe("small");
         expect(
             gateDefinition.condition({
-                id: "gate-id",
-                name: "gate",
+                id: "gate",
                 payload: { warehouseId: "w1", rows: 1 },
             })
         ).toBeTruthy();
@@ -160,7 +155,7 @@ describe("input and output schemas", () => {
 
     it("defaults declarative kinds to no schemas", () => {
         const delayed = delay("wait", { durationMs: 5 });
-        const started = trigger("start", { dagName: "child" });
+        const started = trigger("start", { dagId: "child" });
 
         expect("input" in delayed).toBeFalsy();
         expect("output" in delayed).toBeFalsy();
@@ -176,7 +171,7 @@ describe("input and output schemas", () => {
         });
 
         const started = trigger("start", {
-            dagName: "child",
+            dagId: "child",
             input: warehouseInput,
         });
 
@@ -282,33 +277,26 @@ describe("kind-specific produced values", () => {
         expectTypeOf(delay("wait", { durationMs: 1 })).toEqualTypeOf<
             DelayTaskDefinition<"wait">
         >();
-        expectTypeOf(trigger("start", { dagName: "x" })).toEqualTypeOf<
+        expectTypeOf(trigger("start", { dagId: "x" })).toEqualTypeOf<
             TriggerTaskDefinition<"start">
         >();
     });
 });
 
 describe("branch identity", () => {
-    it("treats a different branches set as a different behavior source", () => {
+    it("rejects a different branches set under the same id", () => {
         const wide = branch("route", {
             branches: ["us", "eu"],
             choose: () => "us",
         });
 
-        const narrow = branch("route", {
-            branches: ["us"],
-            choose: () => "us",
-        });
-
-        expect(taskBehaviorSource(wide)).not.toBe(taskBehaviorSource(narrow));
-
-        // Same name, different behavior: registration must reject it rather
+        // Same id, different behavior: registration must reject it rather
         // than silently keeping the first definition.
         expect(() =>
             createDAG("branches")
                 .chain(wide)
                 .chain(
-                    // @ts-expect-error - same name, different declared branches
+                    // @ts-expect-error - same id, different declared branches
                     branch("route", {
                         branches: ["us", "eu", "apac"],
                         choose: () => "us",
@@ -317,7 +305,7 @@ describe("branch identity", () => {
         ).toThrow('Task "route" already exists in DAG "branches"');
     });
 
-    it("rejects a reordered branches set as a name collision", () => {
+    it("rejects a reordered branches set as an id collision", () => {
         const base = createDAG("reorder").chain(
             branch("route", {
                 branches: ["us", "eu"],
@@ -327,7 +315,7 @@ describe("branch identity", () => {
 
         expect(() =>
             base.chain(
-                // @ts-expect-error - reordered branches are a different behavior source
+                // @ts-expect-error - reordered branches are different behavior
                 branch("route", {
                     branches: ["eu", "us"],
                     choose: () => "us",
@@ -337,17 +325,15 @@ describe("branch identity", () => {
     });
 
     it("reuses an identical branches set and chooser", () => {
-        const first = branch("route", {
-            branches: ["us", "eu"],
-            choose: () => "us",
-        });
+        const dag = createDAG("branches")
+            .chain(
+                branch("route", { branches: ["us", "eu"], choose: chooseUS })
+            )
+            .chain(
+                branch("route", { branches: ["us", "eu"], choose: chooseUS })
+            );
 
-        const second = branch("route", {
-            branches: ["us", "eu"],
-            choose: () => "us",
-        });
-
-        expect(taskBehaviorSource(first)).toBe(taskBehaviorSource(second));
+        expect(dag.tasks.size).toBe(1);
     });
 });
 
@@ -378,8 +364,7 @@ describe("schemas and task identity", () => {
         const plainId = plain.getTask("sync")?.id;
         const schemaId = withSchema.getTask("sync")?.id;
 
-        // Schemas are metadata: the behavior source is the callback alone, so
-        // declaring an input schema does not change the task ID.
+        // Schemas are metadata: they do not change the declared task id.
         expect(plainId).toBe(schemaId);
     });
 });

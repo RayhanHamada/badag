@@ -29,7 +29,7 @@ import type {
     WiringOperand,
 } from "./index";
 
-// A generic helper widens names to string, so its chain is not statically
+// A generic helper widens ids to string, so its chain is not statically
 // checked; it must still typecheck.
 const connect = (dag: DAG, from: TaskLike, to: TaskLike): void => {
     dag.chain(from, to);
@@ -67,7 +67,7 @@ describe("public task types", () => {
             delay("delay", { durationMs: 0 }),
             branch("branch", { choose: () => "left" }),
             shortCircuit("gate", { condition: () => true }),
-            trigger("trigger", { dagName: "child" }),
+            trigger("trigger", { dagId: "child" }),
         ];
 
         expect(definitions.map(({ kind }) => kind)).toStrictEqual([
@@ -98,8 +98,8 @@ describe("public task types", () => {
 
     it("preserves task definition literals and function types", () => {
         const definition = createTask("double", {
-            fn: (ctx) => ctx.name.length * 2,
-            description: "Double the name length",
+            fn: (ctx) => ctx.id.length * 2,
+            description: "Double the id length",
             config: { timeout_ms: 500 },
             triggerRule: TRIGGER_RULE_ENUM.OneFailed,
         });
@@ -107,7 +107,7 @@ describe("public task types", () => {
         expectTypeOf(definition).toEqualTypeOf<
             TaskParamOutput<"double", (ctx: TaskContext<"double">) => number>
         >();
-        expectTypeOf(definition.name).toEqualTypeOf<"double">();
+        expectTypeOf(definition.id).toEqualTypeOf<"double">();
         expectTypeOf(definition.fn).toEqualTypeOf<
             (ctx: TaskContext<"double">) => number
         >();
@@ -122,7 +122,7 @@ describe("public task types", () => {
 
     it("keeps inputs optional and rejects unknown trigger rules", () => {
         const input: TaskParamInput<(ctx: TaskContext<"extract">) => string> = {
-            fn: (ctx) => ctx.name,
+            fn: (ctx) => ctx.id,
         };
 
         expectTypeOf(input.description).toEqualTypeOf<string | undefined>();
@@ -229,8 +229,7 @@ describe("public task types", () => {
             (ctx: TaskContext<"extract">) => Promise<number>
         >().toExtend<TaskFn<"extract">>();
         expectTypeOf<TaskContext<"extract">>().toEqualTypeOf<{
-            readonly id: string;
-            readonly name: "extract";
+            readonly id: "extract";
             readonly payload: undefined;
         }>();
 
@@ -318,7 +317,7 @@ describe("compile-time chain validation", () => {
 
         const dag = createDAG("redeclare").parse`${wide}`;
 
-        // @ts-expect-error - same name, different declared branches
+        // @ts-expect-error - same id, different declared branches
         const conflict = () => dag.parse`${narrow}`;
 
         expect(conflict).toThrow(
@@ -350,11 +349,11 @@ describe("compile-time chain validation", () => {
         );
     });
 
-    it("preserves literal names and handle types", () => {
+    it("preserves literal ids and handle types", () => {
         const extract = createTask("extract", { fn: () => "raw" });
         const dag = createDAG("typed").chain(extract);
 
-        expectTypeOf(extract.name).toEqualTypeOf<"extract">();
+        expectTypeOf(extract.id).toEqualTypeOf<"extract">();
         expectTypeOf(dag).toExtend<DAG>();
         expectTypeOf(dag.getTask("extract")).toEqualTypeOf<
             DAGTask<"extract"> | undefined
@@ -375,7 +374,7 @@ describe("compile-time chain validation", () => {
 
         const duplicate = createTask("extract", { fn: () => 1 });
 
-        // @ts-expect-error - same name with a different signature
+        // @ts-expect-error - same id with a different signature
         const registerDuplicate = () => dag.chain(duplicate);
 
         expect(registerDuplicate).toThrow(
@@ -428,7 +427,7 @@ describe("compile-time chain validation", () => {
         const first = createTask("same", { fn: () => 1 });
         const second = createTask("same", { fn: () => "two" });
 
-        // @ts-expect-error - task name collisions in one chain call
+        // @ts-expect-error - task id collisions in one chain call
         const registerBoth = () => createDAG("batch").chain([first, second]);
 
         expect(registerBoth).toThrow(
@@ -525,7 +524,7 @@ describe("compile-time chain validation", () => {
         );
     });
 
-    it("rejects a same-name branch with a different declared set", () => {
+    it("rejects a same-id branch with a different declared set", () => {
         const wide = branch("route", {
             branches: ["us", "eu"],
             choose: () => "us",
@@ -538,7 +537,7 @@ describe("compile-time chain validation", () => {
 
         const dag = createDAG("redeclare").chain(wide);
 
-        // @ts-expect-error - same name, different declared branches
+        // @ts-expect-error - same id, different declared branches
         const conflict = () => dag.chain(narrow);
 
         expect(conflict).toThrow(

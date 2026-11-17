@@ -8,7 +8,7 @@ import type { DAGViolation } from "./violation";
 /**
  * Report trigger tasks that start the DAG containing them.
  *
- * A trigger task names a target DAG, so a task pointing at its own DAG starts
+ * A trigger task points at a target DAG, so a task targeting its own DAG starts
  * a copy of itself; the SDK does not run DAGs, but no scheduler can execute
  * that request. The target id is compared after trimming, while the
  * containing DAG id is validated without surrounding whitespace.
@@ -27,11 +27,11 @@ export function findTriggerViolations(
             continue;
         }
 
-        if (definition.dagName.trim() === target) {
+        if (definition.dagId.trim() === target) {
             violations.push({
                 code: DAG_VIOLATION_ENUM.SelfTrigger,
-                message: `Trigger task "${task.name}" starts DAG "${target}", which contains it`,
-                subjects: [task.name, target],
+                message: `Trigger task "${task.id}" starts DAG "${target}", which contains it`,
+                subjects: [task.id, target],
             });
         }
     }

@@ -5,9 +5,9 @@ import type {
     ChainTask,
     DuplicateTaskMessage,
     FlattenGroups,
-    GroupNames,
-    HasBroadNames,
-    TaskNameOf,
+    GroupIds,
+    HasBroadIds,
+    TaskIdOf,
     TooManyGroups,
 } from "./shared";
 
@@ -31,7 +31,7 @@ type DeclaredBranchesOf<Task> = "branches" extends keyof Task
  * Whether two declared branch sets are identical.
  *
  * Order matters: `["us", "eu"]` and `["eu", "us"]` are different behavior
- * sources, so runtime rejects the second as a name collision. The type check
+ * sources, so runtime rejects the second as an id collision. The type check
  * must agree, or it would accept a call the runtime throws on.
  */
 type SameBranchSet<Left, Right> = Left extends readonly string[]
@@ -56,15 +56,15 @@ type RegisterBranches<
     ? DeclaredBranchesOf<Task> extends infer Declared
         ? [Declared] extends [never]
             ? RegisterBranches<DagId, Branches, Rest>
-            : TaskNameOf<Task> extends infer TaskName extends string
-              ? TaskName extends keyof Branches
-                  ? SameBranchSet<Branches[TaskName], Declared> extends true
+            : TaskIdOf<Task> extends infer TaskId extends string
+              ? TaskId extends keyof Branches
+                  ? SameBranchSet<Branches[TaskId], Declared> extends true
                       ? RegisterBranches<DagId, Branches, Rest>
-                      : DuplicateTaskMessage<DagId, TaskName>
+                      : DuplicateTaskMessage<DagId, TaskId>
                   : RegisterBranches<
                         DagId,
                         Branches & {
-                            readonly [Name in TaskName]: Declared;
+                            readonly [Name in TaskId]: Declared;
                         },
                         Rest
                     >
@@ -77,7 +77,7 @@ export type NextBranches<
     Branches,
     Groups extends readonly ChainGroup[],
 > =
-    HasBroadNames<Groups> extends true
+    HasBroadIds<Groups> extends true
         ? Branches
         : TooManyGroups<Groups> extends true
           ? Branches
@@ -137,8 +137,8 @@ export type FindBranchProblem<
 ]
     ? BranchStepProblem<
           Branches,
-          GroupNames<Group>,
-          GroupNames<Next>
+          GroupIds<Group>,
+          GroupIds<Next>
       > extends infer Problem
         ? Problem extends string
             ? Problem

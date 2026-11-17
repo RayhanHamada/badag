@@ -1,6 +1,6 @@
 # Branch tasks name their branches instead of holding them
 
-A branch task declares the branch names a scheduler may follow in a `branches` set of plain strings, and `DAG.chain()` plus every edge method enforce that the wiring step directly after the branch routes to exactly those names. The alternative — passing the intended downstream tasks as objects into `branches` — was rejected: it would let a task contain other tasks, invert identity (a parent's task ID would derive from its children), and erase child behavior from the hash, because `taskBehaviorSource()` serializes `branches` through `JSON.stringify`, which drops functions.
+A branch task declares the branch names a scheduler may follow in a `branches` set of plain strings, and `DAG.chain()` plus every edge method enforce that the wiring step directly after the branch routes to exactly those names. The alternative — passing the intended downstream tasks as objects into `branches` — was rejected: it would let a task contain other tasks, invert identity (a parent's id would name its children), and erase child behavior from the declaration.
 
 ## Consequences
 
