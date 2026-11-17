@@ -6,7 +6,7 @@
 <h1 align="center">Badag</h1>
 
 <p align="center">
-  <strong>DAGs that typecheck.</strong><br />
+  <strong>Strongly-typed DAGs.</strong><br />
   Declare tasks, wire dependencies, and catch broken graphs before runtime.
 </p>
 
@@ -18,7 +18,7 @@
 
 Badag is a small TypeScript SDK for describing task graphs. It borrows Airflow's vocabulary — tasks, sensors, delays, branches, short-circuits, triggers — and makes the graph a typed value you can validate, serialize, and hand to a runtime of your choice.
 
-> **The graph is the code. The compiler checks the edges.**
+> **The graph is the code. Typed tasks, validated wiring.**
 
 ## Install
 
@@ -65,9 +65,9 @@ const eu = task("eu", { fn: () => "priced EU" });
 const publish = task("publish", { fn: () => "published" });
 
 const pricing = createDAG("daily-pricing")
-    .chain(sourceReady, extract, route)
-    .chain(route, [us, eu]) // must name exactly the declared branches
-    .chain([us, eu], publish);
+    .parse`${sourceReady} >> ${extract} >> ${route}`
+    .parse`${route} >> ${[us, eu]}` // must name exactly the declared branches
+    .parse`${[us, eu]} >> ${publish}`;
 
 pricing.validate(); // [] — acyclic, consistent, every branch routed
 pricing.toJSON(); // plain JSON: names, kinds, trigger rules, edges
@@ -79,9 +79,9 @@ Wiring is all-or-nothing: if one edge in a batch is invalid, the call adds neith
 
 ## Why Badag?
 
-- **The compiler checks the graph.** When you keep the DAG returned by `chain()`, its type remembers the tasks and edges added so far. Cycles, self-dependencies, duplicate names, and routing steps that miss or invent a declared branch become compile-time errors. The static check covers `chain()` calls with up to 40 wiring sets; runtime validation covers everything else, including dynamically assembled graphs.
+- **Typed wiring.** When you keep the DAG returned by `parse()`, its type remembers the definitions and declared branch sets added so far. Duplicate task ids and conflicting branch declarations become compile-time errors. Branch routing, cycles, self-dependencies, and cross-DAG handles are rejected when the graph is wired, and `validate()` reports them without throwing.
 
-- **Transactional, idempotent wiring.** Every batch validates before it commits. A rejected edge leaves the task registry and edge list unchanged, and re-running an existing chain does nothing.
+- **Transactional, idempotent wiring.** Every batch validates before it commits. A rejected edge leaves the task registry and edge list unchanged, and re-running an existing wiring expression does nothing.
 
 - **Airflow familiarity without the platform.** Six task kinds, wiring sets for fan-out and fan-in, and Airflow-style `>>`/`<<` bitshift expressions. No YAML, no webserver, no scheduler to operate.
 

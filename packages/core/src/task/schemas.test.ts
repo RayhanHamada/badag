@@ -292,46 +292,46 @@ describe("branch identity", () => {
 
         // Same id, different behavior: registration must reject it rather
         // than silently keeping the first definition.
-        expect(() =>
-            createDAG("branches")
-                .chain(wide)
-                .chain(
-                    // @ts-expect-error - same id, different declared branches
-                    branch("route", {
-                        branches: ["us", "eu", "apac"],
-                        choose: () => "us",
-                    })
-                )
+        const dag = createDAG("branches").parse`${wide}`;
+
+        const conflicting = branch("route", {
+            branches: ["us", "eu", "apac"],
+            choose: () => "us",
+        });
+
+        expect(
+            () =>
+                // @ts-expect-error - same id, different declared branches
+                dag.parse`${conflicting}`
         ).toThrow('Task "route" already exists in DAG "branches"');
     });
 
     it("rejects a reordered branches set as an id collision", () => {
-        const base = createDAG("reorder").chain(
-            branch("route", {
-                branches: ["us", "eu"],
-                choose: () => "us",
-            })
-        );
+        const base = createDAG("reorder").parse`${branch("route", {
+            branches: ["us", "eu"],
+            choose: () => "us",
+        })}`;
 
-        expect(() =>
-            base.chain(
+        const reordered = branch("route", {
+            branches: ["eu", "us"],
+            choose: () => "us",
+        });
+
+        expect(
+            () =>
                 // @ts-expect-error - reordered branches are different behavior
-                branch("route", {
-                    branches: ["eu", "us"],
-                    choose: () => "us",
-                })
-            )
+                base.parse`${reordered}`
         ).toThrow('Task "route" already exists in DAG "reorder"');
     });
 
     it("reuses an identical branches set and chooser", () => {
-        const dag = createDAG("branches")
-            .chain(
-                branch("route", { branches: ["us", "eu"], choose: chooseUS })
-            )
-            .chain(
-                branch("route", { branches: ["us", "eu"], choose: chooseUS })
-            );
+        const dag = createDAG("branches").parse`${branch("route", {
+            branches: ["us", "eu"],
+            choose: chooseUS,
+        })}`.parse`${branch("route", {
+            branches: ["us", "eu"],
+            choose: chooseUS,
+        })}`;
 
         expect(dag.tasks.size).toBe(1);
     });
@@ -339,27 +339,24 @@ describe("branch identity", () => {
 
 describe("schemas and task identity", () => {
     it("does not let schemas change the serialized snapshot", () => {
-        const withoutSchema = createDAG("snapshot").chain(
-            task("sync", { fn: () => "ok" })
-        );
+        const withoutSchema = createDAG("snapshot")
+            .parse`${task("sync", { fn: () => "ok" })}`;
 
-        const withSchema = createDAG("snapshot").chain(
-            task("sync", {
-                fn: () => "ok",
-                input: warehouseInput,
-                output: v.string(),
-            })
-        );
+        const withSchema = createDAG("snapshot").parse`${task("sync", {
+            fn: () => "ok",
+            input: warehouseInput,
+            output: v.string(),
+        })}`;
 
         expect(withSchema.toJSON()).toStrictEqual(withoutSchema.toJSON());
     });
 
     it("leaves the task ID unchanged when a schema is declared", () => {
-        const plain = createDAG("ids").chain(task("sync", { fn: () => "ok" }));
+        const plain = createDAG("ids")
+            .parse`${task("sync", { fn: () => "ok" })}`;
 
-        const withSchema = createDAG("ids").chain(
-            task("sync", { fn: () => "ok", input: warehouseInput })
-        );
+        const withSchema = createDAG("ids")
+            .parse`${task("sync", { fn: () => "ok", input: warehouseInput })}`;
 
         const plainId = plain.getTask("sync")?.id;
         const schemaId = withSchema.getTask("sync")?.id;

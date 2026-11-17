@@ -1,20 +1,20 @@
 /**
- * Structural helpers shared by the type-level chain checks.
+ * Structural helpers shared by the type-level parse checks.
  *
- * A DAG carries the signatures of the definitions registered through
- * `chain()` and the edges added by it. Ids typed as plain `string` (generic
- * helpers) skip the checks.
+ * A DAG carries the signatures and declared branch sets of the definitions
+ * registered through `parse()`. Ids typed as plain `string` (generic helpers)
+ * skip the checks.
  */
 
 import type { TaskFn } from "../../task/types/base";
 
-/** The structural shape the chain checks need from a handle or definition. */
-export interface ChainTask {
+/** The structural shape the parse checks need from a handle or definition. */
+export interface WiringTask {
     readonly id: string;
 }
 
 /** A task, or a wiring set. */
-export type ChainGroup = ChainTask | readonly ChainTask[];
+export type WiringGroup = WiringTask | readonly WiringTask[];
 
 export type TaskIdOf<Task> = Task extends {
     readonly id: infer TaskId extends string;
@@ -33,24 +33,24 @@ export type GroupIds<Group> = TaskIdOf<
 >;
 
 /** All argument ids, including ids inside wiring sets. */
-export type FlattenGroups<Groups extends readonly ChainGroup[]> =
+export type FlattenGroups<Groups extends readonly WiringGroup[]> =
     Groups extends readonly [
-        infer Group extends ChainGroup,
-        ...infer Rest extends readonly ChainGroup[],
+        infer Group extends WiringGroup,
+        ...infer Rest extends readonly WiringGroup[],
     ]
         ? [
-              ...(Group extends readonly ChainTask[] ? Group : [Group]),
+              ...(Group extends readonly WiringTask[] ? Group : [Group]),
               ...FlattenGroups<Rest>,
           ]
         : [];
 
-export type HasBroadIds<Groups extends readonly ChainGroup[]> =
+export type HasBroadIds<Groups extends readonly WiringGroup[]> =
     string extends GroupIds<Groups[number]> ? true : false;
 
 /**
- * Type-level graph walking is bounded. TypeScript hits its instantiation
- * depth around 46 wiring sets, so calls with more than 40 positional wiring
- * sets skip the static checks and rely on runtime validation.
+ * Type-level registration is bounded. TypeScript hits its instantiation
+ * depth around 46 operands, so calls with more than 40 operands skip the
+ * static checks and rely on runtime validation.
  */
 export type StaticCheckLength =
     | 0
@@ -95,7 +95,7 @@ export type StaticCheckLength =
     | 39
     | 40;
 
-export type TooManyGroups<Groups extends readonly ChainGroup[]> =
+export type TooManyGroups<Groups extends readonly WiringGroup[]> =
     Groups["length"] extends StaticCheckLength ? false : true;
 
 export type Equal<Left, Right> =

@@ -137,19 +137,17 @@ describe("sensor tasks", () => {
 
     // The polling interval is metadata, so it does not affect the task ID.
     it("reuses a same-id sensor whose interval differs, keeping the first", () => {
-        const dag = createDAG("kinds")
-            .chain(
-                sensor("ready", {
-                    predicate: readyPredicate,
-                    pokeIntervalMs: 10,
-                })
-            )
-            .chain(
-                sensor("ready", {
-                    predicate: readyPredicate,
-                    pokeIntervalMs: 20,
-                })
-            );
+        const first = sensor("ready", {
+            predicate: readyPredicate,
+            pokeIntervalMs: 10,
+        });
+
+        const second = sensor("ready", {
+            predicate: readyPredicate,
+            pokeIntervalMs: 20,
+        });
+
+        const dag = createDAG("kinds").parse`${first}`.parse`${second}`;
 
         const registered = dag.getTask("ready");
 
@@ -243,9 +241,10 @@ describe("delay tasks", () => {
 
     // The duration is behavior, so a differing value conflicts with the id.
     it("rejects a same-id delay with a different duration", () => {
-        const dag = createDAG("kinds").chain(delay("wait", { durationMs: 10 }));
+        const dag = createDAG("kinds")
+            .parse`${delay("wait", { durationMs: 10 })}`;
 
-        expect(() => dag.chain(delay("wait", { durationMs: 20 }))).toThrow(
+        expect(() => dag.parse`${delay("wait", { durationMs: 20 })}`).toThrow(
             'Task "wait" already exists in DAG "kinds"'
         );
         expect(dag.tasks.size).toBe(1);
@@ -253,8 +252,8 @@ describe("delay tasks", () => {
 
     it("accepts a same-id delay with an identical duration", () => {
         const dag = createDAG("kinds")
-            .chain(delay("wait", { durationMs: 10 }))
-            .chain(delay("wait", { durationMs: 10 }));
+            .parse`${delay("wait", { durationMs: 10 })}`
+            .parse`${delay("wait", { durationMs: 10 })}`;
 
         expect(dag.tasks.size).toBe(1);
     });
@@ -332,23 +331,21 @@ describe("branch tasks", () => {
     });
 
     it("rejects a same-id branch whose chooser differs", () => {
-        const dag = createDAG("kinds").chain(
-            branch("route", { choose: () => "left" })
-        );
+        const dag = createDAG("kinds")
+            .parse`${branch("route", { choose: () => "left" })}`;
 
-        expect(() =>
-            dag.chain(branch("route", { choose: () => "right" }))
+        expect(
+            () => dag.parse`${branch("route", { choose: () => "right" })}`
         ).toThrow('Task "route" already exists in DAG "kinds"');
         expect(dag.tasks.size).toBe(1);
     });
 
     it("rejects a same-id task of a different kind", () => {
-        const dag = createDAG("kinds").chain(
-            task("route", { fn: () => "raw" })
-        );
+        const dag = createDAG("kinds")
+            .parse`${task("route", { fn: () => "raw" })}`;
 
-        expect(() =>
-            dag.chain(branch("route", { choose: () => "left" }))
+        expect(
+            () => dag.parse`${branch("route", { choose: () => "left" })}`
         ).toThrow('Task "route" already exists in DAG "kinds"');
         expect(dag.tasks.size).toBe(1);
     });
@@ -418,12 +415,11 @@ describe("short-circuit tasks", () => {
     });
 
     it("rejects a same-id gate whose condition differs", () => {
-        const dag = createDAG("kinds").chain(
-            shortCircuit("gate", { condition: () => true })
-        );
+        const dag = createDAG("kinds")
+            .parse`${shortCircuit("gate", { condition: () => true })}`;
 
-        expect(() =>
-            dag.chain(shortCircuit("gate", { condition: () => false }))
+        expect(
+            () => dag.parse`${shortCircuit("gate", { condition: () => false })}`
         ).toThrow('Task "gate" already exists in DAG "kinds"');
         expect(dag.tasks.size).toBe(1);
     });
@@ -497,27 +493,36 @@ describe("trigger tasks", () => {
     });
 
     it("rejects a same-id trigger targeting a different DAG", () => {
-        const dag = createDAG("kinds").chain(trigger("start", { dagId: "a" }));
+        const start = trigger("start", { dagId: "a" });
+        const other = trigger("start", { dagId: "b" });
+        const dag = createDAG("kinds").parse`${start}`;
 
-        expect(() => dag.chain(trigger("start", { dagId: "b" }))).toThrow(
+        expect(() => dag.parse`${other}`).toThrow(
             'Task "start" already exists in DAG "kinds"'
         );
         expect(dag.tasks.size).toBe(1);
     });
 
     it("rejects a same-id trigger whose wait flag differs", () => {
-        const dag = createDAG("kinds").chain(trigger("start", { dagId: "a" }));
+        const start = trigger("start", { dagId: "a" });
 
-        expect(() =>
-            dag.chain(trigger("start", { dagId: "a", waitForCompletion: true }))
-        ).toThrow('Task "start" already exists in DAG "kinds"');
+        const waiting = trigger("start", {
+            dagId: "a",
+            waitForCompletion: true,
+        });
+
+        const dag = createDAG("kinds").parse`${start}`;
+
+        expect(() => dag.parse`${waiting}`).toThrow(
+            'Task "start" already exists in DAG "kinds"'
+        );
         expect(dag.tasks.size).toBe(1);
     });
 
     it("accepts a same-id trigger with identical target and wait flag", () => {
-        const dag = createDAG("kinds")
-            .chain(trigger("start", { dagId: "a" }))
-            .chain(trigger("start", { dagId: "a", waitForCompletion: false }));
+        const start = trigger("start", { dagId: "a" });
+        const same = trigger("start", { dagId: "a", waitForCompletion: false });
+        const dag = createDAG("kinds").parse`${start}`.parse`${same}`;
 
         expect(dag.tasks.size).toBe(1);
     });
@@ -555,9 +560,9 @@ describe("task id conflicts", () => {
     it.each(callableCases)(
         "rejects capture-only differences in a %s callback",
         (_kind, build) => {
-            const dag = createDAG("capture").chain(build("first"));
+            const dag = createDAG("capture").parse`${build("first")}`;
 
-            expect(() => dag.chain(build("second"))).toThrow(
+            expect(() => dag.parse`${build("second")}`).toThrow(
                 /different behavior/u
             );
             expect(dag.tasks.size).toBe(1);
@@ -567,40 +572,48 @@ describe("task id conflicts", () => {
     it("rejects capture-only differences within one batch", () => {
         const dag = createDAG("batch");
 
-        expect(() =>
-            dag.chain([makeCapturedTask("first"), makeCapturedTask("second")])
+        expect(
+            () =>
+                dag.parse`${[makeCapturedTask("first"), makeCapturedTask("second")]}`
         ).toThrow(/different behavior/u);
         expect(dag.tasks.size).toBe(0);
     });
 
     it("rejects bound callbacks that share native source", () => {
-        const dag = createDAG("bound").chain(
-            task("sync", { fn: boundTarget.bind(null, "customers") })
-        );
+        const dag = createDAG("bound").parse`${task("sync", {
+            fn: boundTarget.bind(null, "customers"),
+        })}`;
 
-        expect(() =>
-            dag.chain(task("sync", { fn: boundTarget.bind(null, "orders") }))
+        expect(
+            () =>
+                dag.parse`${task("sync", { fn: boundTarget.bind(null, "orders") })}`
         ).toThrow(/different behavior/u);
         expect(dag.tasks.size).toBe(1);
     });
 
     it("rejects separate bound callbacks with the same pre-bound value", () => {
-        const dag = createDAG("bound-same").chain(
-            task("sync", { fn: boundTarget.bind(null, "customers") })
-        );
+        const dag = createDAG("bound-same").parse`${task("sync", {
+            fn: boundTarget.bind(null, "customers"),
+        })}`;
 
-        expect(() =>
-            dag.chain(task("sync", { fn: boundTarget.bind(null, "customers") }))
+        expect(
+            () =>
+                dag.parse`${task("sync", {
+                    fn: boundTarget.bind(null, "customers"),
+                })}`
         ).toThrow(/different behavior/u);
         expect(dag.tasks.size).toBe(1);
     });
 
     it("reuses declarative kinds with equal behavior", () => {
         const dag = createDAG("declarative")
-            .chain(delay("wait", { durationMs: 10, description: "first" }))
-            .chain(delay("wait", { durationMs: 10, description: "second" }))
-            .chain(trigger("start", { dagId: "child", description: "first" }))
-            .chain(trigger("start", { dagId: "child", description: "second" }));
+            .parse`${delay("wait", { durationMs: 10, description: "first" })}`
+            .parse`${delay("wait", { durationMs: 10, description: "second" })}`
+            .parse`${trigger("start", { dagId: "child", description: "first" })}`
+            .parse`${trigger("start", {
+            dagId: "child",
+            description: "second",
+        })}`;
 
         expect(dag.tasks.size).toBe(2);
         expect(dag.getTask("wait")?.description).toBe("first");
@@ -627,7 +640,7 @@ describe("shared metadata", () => {
     });
 
     it("keeps metadata absent rather than undefined in JSON", () => {
-        const dag = createDAG("kinds").chain(kindDefinitions());
+        const dag = createDAG("kinds").parse`${kindDefinitions()}`;
 
         for (const taskJson of dag.toJSON().tasks) {
             expect(Object.hasOwn(taskJson, "description")).toBeFalsy();
@@ -638,26 +651,27 @@ describe("shared metadata", () => {
     // Metadata is not behavior, so changing it reuses the registered task.
     it("ignores metadata differences when matching a registered task", () => {
         const definitions = kindDefinitions();
-        const dag = createDAG("kinds").chain(definitions);
+        const dag = createDAG("kinds").parse`${definitions}`;
 
         for (const definition of definitions) {
-            expect(() =>
-                dag.chain({
-                    ...definition,
-                    description: "extra",
-                    config: { retries: 1 },
-                    triggerRule: TRIGGER_RULE_ENUM.OneFailed,
-                })
+            expect(
+                () =>
+                    dag.parse`${{
+                        ...definition,
+                        description: "extra",
+                        config: { retries: 1 },
+                        triggerRule: TRIGGER_RULE_ENUM.OneFailed,
+                    }}`
             ).not.toThrow();
         }
 
-        dag.chain(
-            sensor("ready", {
+        expect(
+            dag.parse`${sensor("ready", {
                 predicate: readyPredicate,
                 description: "changed",
                 triggerRule: TRIGGER_RULE_ENUM.AllDone,
-            })
-        );
+            })}`
+        ).toBe(dag);
         expect(dag.tasks.size).toBe(6);
         expect(dag.getTask("ready")?.description).toBeUndefined();
         expect(dag.getTask("ready")?.triggerRule).toBe(
@@ -674,16 +688,14 @@ describe("shared metadata", () => {
             },
         };
 
-        const dag = createDAG("kinds").chain(
-            task("extract", { fn: () => 0, config: cyclic })
-        );
+        const dag = createDAG("kinds")
+            .parse`${task("extract", { fn: () => 0, config: cyclic })}`;
 
         expect(() => dag.toJSON()).not.toThrow();
         expect(() => JSON.stringify(dag)).toThrow(TypeError);
 
-        const bigint = createDAG("kinds").chain(
-            task("extract", { fn: () => 0, config: { retries: 1n } })
-        );
+        const bigint = createDAG("kinds")
+            .parse`${task("extract", { fn: () => 0, config: { retries: 1n } })}`;
 
         expect(() => bigint.toJSON()).not.toThrow();
         expect(() => JSON.stringify(bigint)).toThrow(TypeError);
@@ -692,14 +704,8 @@ describe("shared metadata", () => {
 
 describe("DAG integration", () => {
     it("registers every task kind and serializes its metadata", () => {
-        const dag = createDAG("kinds").chain(
-            task("extract", { fn: () => "raw" }),
-            sensor("ready", { predicate: () => true, pokeIntervalMs: 5000 }),
-            delay("wait", { durationMs: 25 }),
-            branch("route", { choose: () => "left" }),
-            shortCircuit("gate", { condition: () => true }),
-            trigger("start", { dagId: "child", waitForCompletion: true })
-        );
+        const dag = createDAG("kinds")
+            .parse`${task("extract", { fn: () => "raw" })} >> ${sensor("ready", { predicate: () => true, pokeIntervalMs: 5000 })} >> ${delay("wait", { durationMs: 25 })} >> ${branch("route", { choose: () => "left" })} >> ${shortCircuit("gate", { condition: () => true })} >> ${trigger("start", { dagId: "child", waitForCompletion: true })}`;
 
         expect(
             dag.topologicalSort().map((registered) => registered.kind)
@@ -751,22 +757,15 @@ describe("DAG integration", () => {
     });
 
     it("omits an absent sensor interval from JSON", () => {
-        const dag = createDAG("kinds").chain(
-            sensor("ready", { predicate: () => true })
-        );
+        const dag = createDAG("kinds")
+            .parse`${sensor("ready", { predicate: () => true })}`;
 
         expect(dag.toJSON().tasks[0]).not.toHaveProperty("pokeIntervalMs");
     });
 
     it("snapshots every registered kind through DAGTask.toJSON()", () => {
-        const dag = createDAG("kinds").chain(
-            task("extract", { fn: () => "raw" }),
-            sensor("ready", { predicate: () => true, pokeIntervalMs: 5000 }),
-            delay("wait", { durationMs: 25 }),
-            branch("route", { choose: () => "left" }),
-            shortCircuit("gate", { condition: () => true }),
-            trigger("start", { dagId: "child", waitForCompletion: true })
-        );
+        const dag = createDAG("kinds")
+            .parse`${task("extract", { fn: () => "raw" })} >> ${sensor("ready", { predicate: () => true, pokeIntervalMs: 5000 })} >> ${delay("wait", { durationMs: 25 })} >> ${branch("route", { choose: () => "left" })} >> ${shortCircuit("gate", { condition: () => true })} >> ${trigger("start", { dagId: "child", waitForCompletion: true })}`;
 
         const snapshots = dag
             .topologicalSort()
@@ -786,7 +785,7 @@ describe("DAG integration", () => {
             trigger("shared", { dagId: "child" }),
         ];
 
-        expect(() => createDAG("ids").chain(definitions)).toThrow(
+        expect(() => createDAG("ids").parse`${definitions}`).toThrow(
             /already exists in DAG "ids" with different behavior/u
         );
     });
@@ -802,8 +801,8 @@ describe("DAG integration", () => {
             trigger("start", { dagId: "child" }),
         ];
 
-        const first = createDAG("first").chain(definitions);
-        const second = createDAG("second").chain(definitions);
+        const first = createDAG("first").parse`${definitions}`;
+        const second = createDAG("second").parse`${definitions}`;
 
         expect(first.tasks.size).toBe(6);
         expect(second.tasks.size).toBe(6);
@@ -815,13 +814,8 @@ describe("DAG integration", () => {
     });
 
     it("chains mixed kinds and records kind-agnostic edges", () => {
-        const dag = createDAG("mixed").chain(
-            task("extract", { fn: () => "raw" }),
-            sensor("ready", { predicate: () => true }),
-            delay("wait", { durationMs: 25 }),
-            shortCircuit("gate", { condition: () => true }),
-            trigger("start", { dagId: "child" })
-        );
+        const dag = createDAG("mixed")
+            .parse`${task("extract", { fn: () => "raw" })} >> ${sensor("ready", { predicate: () => true })} >> ${delay("wait", { durationMs: 25 })} >> ${shortCircuit("gate", { condition: () => true })} >> ${trigger("start", { dagId: "child" })}`;
 
         expect(dag.topologicalSort().map(({ id }) => id)).toStrictEqual([
             "extract",
@@ -841,11 +835,8 @@ describe("DAG integration", () => {
         const route = branch("route", { choose: () => "left" });
         const start = trigger("start", { dagId: "child" });
 
-        const dag = createDAG("fan").chain(
-            task("extract", { fn: () => 0 }),
-            [gate, route],
-            start
-        );
+        const dag = createDAG("fan")
+            .parse`${task("extract", { fn: () => 0 })} >> ${[gate, route]} >> ${start}`;
 
         const extract = dag.getTask("extract");
 

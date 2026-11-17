@@ -563,13 +563,14 @@ describe("DAG.parse", () => {
         });
     });
 
-    it("builds one graph across parse and chain calls", () => {
+    it("builds one graph across parse calls", () => {
         const a = createTask("a", { fn: () => "a" });
         const b = createTask("b", { fn: () => "b" });
         const c = createTask("c", { fn: () => "c" });
         const d = createTask("d", { fn: () => "d" });
 
-        const dag = createDAG("etl").chain(a, b).parse`${b} >> ${[c, d]}`;
+        const dag = createDAG("etl").parse`${a} >> ${b}`
+            .parse`${b} >> ${[c, d]}`;
 
         expect(downstreamNames(dag)).toStrictEqual({
             a: ["b"],
@@ -580,12 +581,12 @@ describe("DAG.parse", () => {
         expect(namesOf(dag)).toStrictEqual(["a", "b", "c", "d"]);
     });
 
-    it("continues a parse-built graph through chain", () => {
+    it("continues a parse-built graph with another parse call", () => {
         const a = createTask("a", { fn: () => "a" });
         const b = createTask("b", { fn: () => "b" });
         const c = createTask("c", { fn: () => "c" });
 
-        const dag = createDAG("etl").parse`${a} >> ${b}`.chain(b, c);
+        const dag = createDAG("etl").parse`${a} >> ${b}`.parse`${b} >> ${c}`;
 
         expect(downstreamNames(dag)).toStrictEqual({
             a: ["b"],
@@ -622,20 +623,20 @@ describe("DAG.parse", () => {
         expect(handle.definition).toBe(extract);
     });
 
-    it("assigns the same task id as chain for the same definition", () => {
+    it("assigns the same task id in another DAG for the same definition", () => {
         const definition = createTask("extract", { fn: () => "raw" });
 
-        const viaParse = requireTask(
-            createDAG("parse").parse`${definition}`,
+        const viaFirst = requireTask(
+            createDAG("first").parse`${definition}`,
             "extract"
         );
 
-        const viaChain = requireTask(
-            createDAG("chain").chain(definition),
+        const viaSecond = requireTask(
+            createDAG("second").parse`${definition}`,
             "extract"
         );
 
-        expect(viaParse.id).toBe(viaChain.id);
+        expect(viaFirst.id).toBe(viaSecond.id);
     });
 
     it("registers every task kind through the notation", () => {

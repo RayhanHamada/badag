@@ -11,7 +11,7 @@ const extract = task("extract", { fn: () => "raw" });
 const settle = delay("settle", { durationMs: 100 });
 const load = task("load", { fn: () => "stored" });
 
-const dag = createDAG("etl").chain(extract, settle, load);
+const dag = createDAG("etl").parse`${extract} >> ${settle} >> ${load}`;
 ```
 
 ## Install
@@ -20,7 +20,7 @@ const dag = createDAG("etl").chain(extract, settle, load);
 bun add @badag/sdk
 ```
 
-`sdk` is ESM-only and ships declaration files. `createDAG(dagId, metadata?)` preserves the literal Airflow-style DAG id in its return type, so the `chain()` checks from `@badag/core` apply unchanged.
+`sdk` is ESM-only and ships declaration files. `createDAG(dagId, metadata?)` preserves the literal Airflow-style DAG id in its return type, so the `parse()` checks from `@badag/core` apply unchanged.
 
 ## API
 

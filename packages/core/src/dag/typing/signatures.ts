@@ -1,9 +1,9 @@
-/** Type-level registration of task signatures for `DAG.chain()`. */
+/** Type-level registration of task signatures for `DAG.parse()`. */
 
 import type { TaskFn } from "../../task/types/base";
 import type {
-    ChainGroup,
-    ChainTask,
+    WiringGroup,
+    WiringTask,
     DuplicateTaskMessage,
     Equal,
     FlattenGroups,
@@ -34,7 +34,7 @@ interface RegistrationError<Message extends string> {
  * already registered with an equal signature is reused; a different signature
  * is the duplicate error.
  */
-type RegisterTask<DagId extends string, Signatures, Task extends ChainTask> =
+type RegisterTask<DagId extends string, Signatures, Task extends WiringTask> =
     IsBroadFn<TaskFnOf<Task>> extends true
         ? RegistrationOk<Signatures>
         : TaskIdOf<Task> extends infer TaskId extends string
@@ -51,14 +51,14 @@ type RegisterTask<DagId extends string, Signatures, Task extends ChainTask> =
                 >
           : RegistrationOk<Signatures>;
 
-/** Register every definition in a flattened chain, stopping at the first error. */
+/** Register every definition in a flattened wiring expression, stopping at the first error. */
 export type RegisterAll<
     Signatures,
-    Tasks extends readonly ChainTask[],
+    Tasks extends readonly WiringTask[],
     DagId extends string,
 > = Tasks extends readonly [
-    infer Task extends ChainTask,
-    ...infer Rest extends readonly ChainTask[],
+    infer Task extends WiringTask,
+    ...infer Rest extends readonly WiringTask[],
 ]
     ? RegisterTask<DagId, Signatures, Task> extends {
           readonly error: infer Error;
@@ -73,7 +73,7 @@ export type RegisterAll<
 export type NextSignatures<
     DagId extends string,
     Signatures,
-    Groups extends readonly ChainGroup[],
+    Groups extends readonly WiringGroup[],
 > =
     HasBroadIds<Groups> extends true
         ? Signatures

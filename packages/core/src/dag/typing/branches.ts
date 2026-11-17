@@ -1,11 +1,10 @@
-/** Type-level declared-branch checks for `DAG.chain()`. */
+/** Type-level declared-branch checks for `DAG.parse()`. */
 
 import type {
-    ChainGroup,
-    ChainTask,
+    WiringGroup,
+    WiringTask,
     DuplicateTaskMessage,
     FlattenGroups,
-    GroupIds,
     HasBroadIds,
     TaskIdOf,
     TooManyGroups,
@@ -44,14 +43,14 @@ type SameBranchSet<Left, Right> = Left extends readonly string[]
         : false
     : false;
 
-/** Register every declared branch set in a flattened chain. */
+/** Register every declared branch set in a flattened wiring expression. */
 type RegisterBranches<
     DagId extends string,
     Branches,
-    Tasks extends readonly ChainTask[],
+    Tasks extends readonly WiringTask[],
 > = Tasks extends readonly [
-    infer Task extends ChainTask,
-    ...infer Rest extends readonly ChainTask[],
+    infer Task extends WiringTask,
+    ...infer Rest extends readonly WiringTask[],
 ]
     ? DeclaredBranchesOf<Task> extends infer Declared
         ? [Declared] extends [never]
@@ -75,7 +74,7 @@ type RegisterBranches<
 export type NextBranches<
     DagId extends string,
     Branches,
-    Groups extends readonly ChainGroup[],
+    Groups extends readonly WiringGroup[],
 > =
     HasBroadIds<Groups> extends true
         ? Branches
@@ -91,66 +90,11 @@ export type NextBranches<
                 : Next
             : Branches;
 
-type BranchRouteProblem<
-    Branches,
-    Source extends string,
-    Targets extends string,
-> = Source extends keyof Branches
-    ? Branches[Source] extends infer Declared extends readonly string[]
-        ? [Declared[number]] extends [never]
-            ? `Branch "${Source}" cannot route to "${Targets & string}"; it declares no branches`
-            : [Exclude<Targets, Declared[number]>] extends [never]
-              ? [Exclude<Declared[number], Targets>] extends [never]
-                  ? true
-                  : `Branch "${Source}" must route to declared branch "${Exclude<Declared[number], Targets> & string}"`
-              : `Branch "${Source}" cannot route to "${Exclude<Targets, Declared[number]> & string}"; "${Exclude<Targets, Declared[number]> & string}" is not a declared branch`
-        : never
-    : true;
-
-/**
- * The problem one wiring step has with a declared branch set, or `true`.
- *
- * Downstream tasks are not inspected: a branch constrains what it routes to.
- */
-type BranchStepProblem<
-    Branches,
-    Sources extends string,
-    Targets extends string,
-> = [Targets] extends [never]
-    ? true
-    : {
-            [Source in Sources]: BranchRouteProblem<Branches, Source, Targets>;
-        }[Sources] extends infer Problems
-      ? [Extract<Problems, string>] extends [never]
-          ? true
-          : Extract<Problems, string>
-      : never;
-
-/** Return the first branch-wiring message in a wiring set sequence. */
-export type FindBranchProblem<
-    Branches,
-    Groups extends readonly ChainGroup[],
-> = Groups extends readonly [
-    infer Group extends ChainGroup,
-    infer Next extends ChainGroup,
-    ...infer Rest extends readonly ChainGroup[],
-]
-    ? BranchStepProblem<
-          Branches,
-          GroupIds<Group>,
-          GroupIds<Next>
-      > extends infer Problem
-        ? Problem extends string
-            ? Problem
-            : FindBranchProblem<Branches, [Next, ...Rest]>
-        : never
-    : true;
-
-/** The first problem registering a chain's declared branch sets, or `true`. */
+/** The first problem registering a parse call's declared branch sets, or `true`. */
 export type CheckBranches<
     DagId extends string,
     Branches,
-    Groups extends readonly ChainGroup[],
+    Groups extends readonly WiringGroup[],
 > =
     RegisterBranches<DagId, Branches, FlattenGroups<Groups>> extends infer Next
         ? Next extends string

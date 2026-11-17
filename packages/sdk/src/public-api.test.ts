@@ -37,11 +37,11 @@ describe("@badag/sdk", () => {
         const metadata: DAGMetadata = { description: "Nightly ETL" };
         const created = sdk.createDAG("etl", metadata);
 
-        const dag = created.chain(
-            sdk.task("extract", { fn: () => "raw" }),
-            sdk.delay("settle", { durationMs: 100 }),
-            sdk.task("load", { fn: () => "stored" })
-        );
+        const extract = sdk.task("extract", { fn: () => "raw" });
+        const settle = sdk.delay("settle", { durationMs: 100 });
+        const load = sdk.task("load", { fn: () => "stored" });
+
+        const dag = created.parse`${extract} >> ${settle} >> ${load}`;
 
         expectTypeOf(created).toEqualTypeOf<DAG<"etl">>();
         expect(created.metadata).toStrictEqual(metadata);

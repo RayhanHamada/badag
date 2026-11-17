@@ -79,19 +79,15 @@ describe("validate: graphs built through the wiring API", () => {
     });
 
     it("reports nothing for a linear chain", () => {
-        const dag = createDAG("etl").chain(
-            regular("extract"),
-            regular("transform"),
-            regular("load")
-        );
+        const dag = createDAG("etl")
+            .parse`${regular("extract")} >> ${regular("transform")} >> ${regular("load")}`;
 
         expect(dag.validate()).toStrictEqual([]);
     });
 
     it("reports nothing for a graph with independent components", () => {
-        const dag = createDAG("split")
-            .chain(regular("a"), regular("b"))
-            .chain(regular("c"), regular("d"));
+        const dag = createDAG("split").parse`${regular("a")} >> ${regular("b")}`
+            .parse`${regular("c")} >> ${regular("d")}`;
 
         expect(dag.validate()).toStrictEqual([]);
     });
@@ -106,16 +102,14 @@ describe("validate: graphs built through the wiring API", () => {
     });
 
     it("reports nothing when a branch routes to every declared branch", () => {
-        const dag = createDAG("routing").chain(route(["us", "eu"]), [
-            regular("us"),
-            regular("eu"),
-        ]);
+        const dag = createDAG("routing")
+            .parse`${route(["us", "eu"])} >> ${[regular("us"), regular("eu")]}`;
 
         expect(dag.validate()).toStrictEqual([]);
     });
 
     it("reports a branch registered alone with declared branches", () => {
-        const dag = createDAG("pending").chain(route(["us", "eu"]));
+        const dag = createDAG("pending").parse`${route(["us", "eu"])}`;
 
         expect(dag.validate()).toStrictEqual([
             {
@@ -132,41 +126,45 @@ describe("validate: graphs built through the wiring API", () => {
     });
 
     it("clears the finding once the branch is routed", () => {
-        const dag = createDAG("pending").chain(route(["us", "eu"]), [
-            regular("us"),
-            regular("eu"),
-        ]);
+        const dag = createDAG("pending")
+            .parse`${route(["us", "eu"])} >> ${[regular("us"), regular("eu")]}`;
 
         expect(dag.validate()).toStrictEqual([]);
     });
 
     it("reports nothing for a branch that declares no branches", () => {
         const unchecked = branch("free", { choose: () => "anything" });
-        const dag = createDAG("free").chain(unchecked, regular("anything"));
+
+        const dag = createDAG("free")
+            .parse`${unchecked} >> ${regular("anything")}`;
 
         expect(dag.validate()).toStrictEqual([]);
     });
 
     it("agrees with topologicalSort on a valid graph", () => {
-        const dag = createDAG("etl").chain(regular("a"), regular("b"));
+        const dag = createDAG("etl").parse`${regular("a")} >> ${regular("b")}`;
 
         expect(dag.validate()).toStrictEqual([]);
         expect(dag.topologicalSort()).toHaveLength(2);
     });
 
     it("reports nothing for a diamond", () => {
-        const dag = createDAG("diamond").chain(
-            regular("a"),
-            [regular("b"), regular("c")],
-            regular("d")
-        );
+        const dag = createDAG("diamond")
+            .parse`${regular("a")} >> ${[regular("b"), regular("c")]} >> ${regular("d")}`;
 
         expect(dag.validate()).toStrictEqual([]);
     });
 
     it("reports nothing for a deep single chain", () => {
         const ids = Array.from({ length: 100 }, (_, index) => `t${index}`);
-        const dag = createDAG("deep").chain(...ids.map(regular));
+        const dag = createDAG("deep");
+        const [head, ...rest] = ids.map(regular);
+        let previous = head;
+
+        for (const next of rest) {
+            dag.addDependencies(previous, next);
+            previous = next;
+        }
 
         expect(dag.validate()).toStrictEqual([]);
     });
@@ -176,11 +174,8 @@ describe("validate: graphs built through the wiring API", () => {
             regular(`leaf${index}`)
         );
 
-        const dag = createDAG("wide").chain(
-            regular("root"),
-            leaves,
-            regular("sink")
-        );
+        const dag = createDAG("wide")
+            .parse`${regular("root")} >> ${leaves} >> ${regular("sink")}`;
 
         expect(dag.validate()).toStrictEqual([]);
     });
@@ -188,60 +183,63 @@ describe("validate: graphs built through the wiring API", () => {
     it("reports nothing for repeated identical wiring calls", () => {
         const a = regular("a");
         const b = regular("b");
-        const dag = createDAG("idem").chain(a, b).chain(a, b).chain(a, b);
+
+        const dag = createDAG("idem").parse`${a} >> ${b}`.parse`${a} >> ${b}`
+            .parse`${a} >> ${b}`;
 
         expect(dag.validate()).toStrictEqual([]);
     });
 
     it("reports nothing for a complete multipartite layering", () => {
-        const dag = createDAG("layers").chain(
-            [regular("a"), regular("b")],
-            [regular("c"), regular("d")],
-            [regular("e"), regular("f")]
-        );
+        const dag = createDAG("layers")
+            .parse`${[regular("a"), regular("b")]} >> ${[regular("c"), regular("d")]} >> ${[regular("e"), regular("f")]}`;
 
         expect(dag.validate()).toStrictEqual([]);
     });
 
     it("reports nothing for every task kind wired in one graph", () => {
-        const dag = createDAG("kinds").chain(
-            regular("extract"),
-            sensor("wait", { predicate: () => true }),
-            delay("pause", { durationMs: 10 }),
-            shortCircuit("gate", { condition: () => true }),
-            trigger("launch", { dagId: "child" })
-        );
+        const extract = regular("extract");
+        const wait = sensor("wait", { predicate: () => true });
+        const pause = delay("pause", { durationMs: 10 });
+        const gate = shortCircuit("gate", { condition: () => true });
+        const launch = trigger("launch", { dagId: "child" });
+
+        const dag = createDAG("kinds")
+            .parse`${extract} >> ${wait} >> ${pause} >> ${gate} >> ${launch}`;
 
         expect(dag.validate()).toStrictEqual([]);
     });
 
     it("reports nothing for a branch routed to one declared branch", () => {
-        const dag = createDAG("single").chain(route(["only"]), [
-            regular("only"),
-        ]);
+        const dag = createDAG("single")
+            .parse`${route(["only"])} >> ${[regular("only")]}`;
 
         expect(dag.validate()).toStrictEqual([]);
     });
 
     it("reports nothing for two branches routing independently", () => {
         const dag = createDAG("routing")
-            .chain([route(["us"], "geo")], [regular("us")])
-            .chain([route(["eu"], "region")], [regular("eu")]);
+            .parse`${[route(["us"], "geo")]} >> ${[regular("us")]}`
+            .parse`${[route(["eu"], "region")]} >> ${[regular("eu")]}`;
 
         expect(dag.validate()).toStrictEqual([]);
     });
 
     it("reports nothing after a rejected batch rolls back", () => {
-        const dag = createDAG("rollback").chain(regular("a"), regular("b"));
+        const dag = createDAG("rollback")
+            .parse`${regular("a")} >> ${regular("b")}`;
+
         const c = regular("c");
 
-        expect(() => dag.chain(c, c)).toThrow("A task cannot depend on itself");
+        expect(() => dag.parse`${c} >> ${c}`).toThrow(
+            "A task cannot depend on itself"
+        );
         expect(dag.validate()).toStrictEqual([]);
         expect(dag.tasks.size).toBe(2);
     });
 
     it("does not mutate the graph", () => {
-        const dag = createDAG("etl").chain(regular("a"), regular("b"));
+        const dag = createDAG("etl").parse`${regular("a")} >> ${regular("b")}`;
 
         dag.validate();
 
@@ -293,7 +291,7 @@ describe("validate: DAG id", () => {
 
 describe("validate: task ids", () => {
     it("reports an id outside Airflow's task_id convention", () => {
-        const dag = createDAG("names").chain(regular("extract"));
+        const dag = createDAG("names").parse`${regular("extract")}`;
         renameTask(requireTask(dag, "extract"), "extract users");
 
         expect(dag.validate()).toStrictEqual([
@@ -308,7 +306,7 @@ describe("validate: task ids", () => {
 
     it("reports an id longer than Airflow's limit", () => {
         const id = "a".repeat(251);
-        const dag = createDAG("names").chain(regular("extract"));
+        const dag = createDAG("names").parse`${regular("extract")}`;
         renameTask(requireTask(dag, "extract"), id);
 
         expect(dag.validate()).toStrictEqual([
@@ -321,17 +319,17 @@ describe("validate: task ids", () => {
     });
 
     it("reports nothing for dots, repeated separators, and unicode", () => {
-        const dag = createDAG("names").chain([
+        const dag = createDAG("names").parse`${[
             regular("extract.users"),
             regular("extract--daily"),
             regular("ünïcode_task"),
-        ]);
+        ]}`;
 
         expect(dag.validate()).toStrictEqual([]);
     });
 
     it("reports the DAG id before task ids", () => {
-        const dag = createDAG("bad id").chain(regular("extract"));
+        const dag = createDAG("bad id").parse`${regular("extract")}`;
         renameTask(requireTask(dag, "extract"), "extract users");
 
         expect(codes(dag.validate())).toStrictEqual([
@@ -343,7 +341,7 @@ describe("validate: task ids", () => {
 
 describe("validate: cycles", () => {
     it("reports a self edge as one finding, not a cycle too", () => {
-        const dag = createDAG("loop").chain(regular("only"));
+        const dag = createDAG("loop").parse`${regular("only")}`;
 
         injectEdge(requireTask(dag, "only"), requireTask(dag, "only"));
 
@@ -357,7 +355,7 @@ describe("validate: cycles", () => {
     });
 
     it("reports the tasks on a two-task cycle", () => {
-        const dag = createDAG("loop").chain(regular("a"), regular("b"));
+        const dag = createDAG("loop").parse`${regular("a")} >> ${regular("b")}`;
 
         injectEdge(requireTask(dag, "b"), requireTask(dag, "a"));
 
@@ -368,11 +366,8 @@ describe("validate: cycles", () => {
     });
 
     it("reports the path that closes a longer cycle", () => {
-        const dag = createDAG("loop").chain(
-            regular("a"),
-            regular("b"),
-            regular("c")
-        );
+        const dag = createDAG("loop")
+            .parse`${regular("a")} >> ${regular("b")} >> ${regular("c")}`;
 
         injectEdge(requireTask(dag, "c"), requireTask(dag, "a"));
 
@@ -383,9 +378,8 @@ describe("validate: cycles", () => {
     });
 
     it("reports each disjoint cycle", () => {
-        const dag = createDAG("loops")
-            .chain(regular("a"), regular("b"))
-            .chain(regular("c"), regular("d"));
+        const dag = createDAG("loops").parse`${regular("a")} >> ${regular("b")}`
+            .parse`${regular("c")} >> ${regular("d")}`;
 
         injectEdge(requireTask(dag, "b"), requireTask(dag, "a"));
         injectEdge(requireTask(dag, "d"), requireTask(dag, "c"));
@@ -401,11 +395,8 @@ describe("validate: cycles", () => {
     });
 
     it("reports a cycle once when two tasks share it", () => {
-        const dag = createDAG("diamond").chain(
-            regular("a"),
-            [regular("b"), regular("c")],
-            regular("d")
-        );
+        const dag = createDAG("diamond")
+            .parse`${regular("a")} >> ${[regular("b"), regular("c")]} >> ${regular("d")}`;
 
         injectEdge(requireTask(dag, "d"), requireTask(dag, "a"));
 
@@ -413,11 +404,8 @@ describe("validate: cycles", () => {
     });
 
     it("reports two distinct cycles that share a task", () => {
-        const dag = createDAG("figure-eight").chain(
-            regular("a"),
-            regular("b"),
-            regular("c")
-        );
+        const dag = createDAG("figure-eight")
+            .parse`${regular("a")} >> ${regular("b")} >> ${regular("c")}`;
 
         injectEdge(requireTask(dag, "b"), requireTask(dag, "a"));
         injectEdge(requireTask(dag, "c"), requireTask(dag, "b"));
@@ -433,11 +421,8 @@ describe("validate: cycles", () => {
     });
 
     it("reports a cycle entered below its head", () => {
-        const dag = createDAG("late").chain(
-            regular("a"),
-            regular("b"),
-            regular("c")
-        );
+        const dag = createDAG("late")
+            .parse`${regular("a")} >> ${regular("b")} >> ${regular("c")}`;
 
         injectEdge(requireTask(dag, "c"), requireTask(dag, "b"));
 
@@ -448,7 +433,7 @@ describe("validate: cycles", () => {
     });
 
     it("reports separate self edges on separate tasks", () => {
-        const dag = createDAG("selfs").chain([regular("x"), regular("y")]);
+        const dag = createDAG("selfs").parse`${[regular("x"), regular("y")]}`;
 
         injectEdge(requireTask(dag, "x"), requireTask(dag, "x"));
         injectEdge(requireTask(dag, "y"), requireTask(dag, "y"));
@@ -468,7 +453,7 @@ describe("validate: cycles", () => {
     });
 
     it("reports a self edge recorded only upstream", () => {
-        const dag = createDAG("onesided").chain(regular("z"));
+        const dag = createDAG("onesided").parse`${regular("z")}`;
 
         stateOf(requireTask(dag, "z")).upstream.add(requireTask(dag, "z"));
 
@@ -482,7 +467,7 @@ describe("validate: cycles", () => {
     });
 
     it("reports a self edge once when recorded on both sides", () => {
-        const dag = createDAG("both-sides").chain(regular("w"));
+        const dag = createDAG("both-sides").parse`${regular("w")}`;
 
         injectEdge(requireTask(dag, "w"), requireTask(dag, "w"));
 
@@ -490,8 +475,8 @@ describe("validate: cycles", () => {
     });
 
     it("does not traverse a foreign target looking for cycles", () => {
-        const dag = createDAG("home").chain(regular("a"), regular("b"));
-        const other = createDAG("other").chain(regular("c"));
+        const dag = createDAG("home").parse`${regular("a")} >> ${regular("b")}`;
+        const other = createDAG("other").parse`${regular("c")}`;
 
         injectEdge(requireTask(dag, "b"), requireTask(other, "c"));
         injectEdge(requireTask(other, "c"), requireTask(other, "c"));
@@ -502,8 +487,10 @@ describe("validate: cycles", () => {
     });
 
     it("reports a cycle in a graph with a foreign edge too", () => {
-        const dag = createDAG("mixed").chain(regular("a"), regular("b"));
-        const other = createDAG("other").chain(regular("c"));
+        const dag = createDAG("mixed")
+            .parse`${regular("a")} >> ${regular("b")}`;
+
+        const other = createDAG("other").parse`${regular("c")}`;
 
         injectEdge(requireTask(dag, "b"), requireTask(dag, "a"));
         injectEdge(requireTask(dag, "a"), requireTask(other, "c"));
@@ -515,10 +502,8 @@ describe("validate: cycles", () => {
     });
 
     it("reports a cycle under a task id that matches a code", () => {
-        const dag = createDAG("kw").chain(
-            regular("cycle"),
-            regular("self-edge")
-        );
+        const dag = createDAG("kw")
+            .parse`${regular("cycle")} >> ${regular("self-edge")}`;
 
         injectEdge(requireTask(dag, "self-edge"), requireTask(dag, "cycle"));
 
@@ -533,13 +518,8 @@ describe("validate: cycles", () => {
     });
 
     it("reports a five-task cycle as one finding", () => {
-        const dag = createDAG("long").chain(
-            regular("n0"),
-            regular("n1"),
-            regular("n2"),
-            regular("n3"),
-            regular("n4")
-        );
+        const dag = createDAG("long")
+            .parse`${regular("n0")} >> ${regular("n1")} >> ${regular("n2")} >> ${regular("n3")} >> ${regular("n4")}`;
 
         injectEdge(requireTask(dag, "n4"), requireTask(dag, "n0"));
 
@@ -559,8 +539,8 @@ describe("validate: cycles", () => {
 
 describe("validate: foreign and inconsistent edges", () => {
     it("reports an edge whose target belongs to another DAG", () => {
-        const dag = createDAG("home").chain(regular("a"));
-        const other = createDAG("other").chain(regular("b"));
+        const dag = createDAG("home").parse`${regular("a")}`;
+        const other = createDAG("other").parse`${regular("b")}`;
 
         injectEdge(requireTask(dag, "a"), requireTask(other, "b"));
 
@@ -575,8 +555,8 @@ describe("validate: foreign and inconsistent edges", () => {
     });
 
     it("reports an edge whose source belongs to another DAG", () => {
-        const dag = createDAG("home").chain(regular("a"));
-        const other = createDAG("other").chain(regular("b"));
+        const dag = createDAG("home").parse`${regular("a")}`;
+        const other = createDAG("other").parse`${regular("b")}`;
 
         injectEdge(requireTask(other, "b"), requireTask(dag, "a"));
 
@@ -591,7 +571,7 @@ describe("validate: foreign and inconsistent edges", () => {
     });
 
     it("reports an edge recorded on only the downstream side", () => {
-        const dag = createDAG("half").chain(regular("a"), regular("b"));
+        const dag = createDAG("half").parse`${regular("a")} >> ${regular("b")}`;
 
         stateOf(requireTask(dag, "b")).upstream.delete(requireTask(dag, "a"));
 
@@ -605,7 +585,7 @@ describe("validate: foreign and inconsistent edges", () => {
     });
 
     it("reports an edge recorded on only the upstream side", () => {
-        const dag = createDAG("half").chain(regular("a"), regular("b"));
+        const dag = createDAG("half").parse`${regular("a")} >> ${regular("b")}`;
 
         stateOf(requireTask(dag, "a")).downstream.delete(requireTask(dag, "b"));
 
@@ -619,7 +599,7 @@ describe("validate: foreign and inconsistent edges", () => {
     });
 
     it("stays valid when the wiring API rejects the bad edge", () => {
-        const dag = createDAG("guarded").chain(regular("a"));
+        const dag = createDAG("guarded").parse`${regular("a")}`;
 
         expect(() =>
             requireTask(dag, "a").setDownstream(requireTask(dag, "a"))
@@ -628,8 +608,8 @@ describe("validate: foreign and inconsistent edges", () => {
     });
 
     it("reports one finding per direction for a mutual cross-DAG edge", () => {
-        const home = createDAG("home").chain(regular("a"));
-        const away = createDAG("away").chain(regular("b"));
+        const home = createDAG("home").parse`${regular("a")}`;
+        const away = createDAG("away").parse`${regular("b")}`;
 
         injectEdge(requireTask(home, "a"), requireTask(away, "b"));
         injectEdge(requireTask(away, "b"), requireTask(home, "a"));
@@ -647,7 +627,8 @@ describe("validate: foreign and inconsistent edges", () => {
     });
 
     it("reports a duplicate edge once", () => {
-        const dag = createDAG("twice").chain(regular("p"), regular("q"));
+        const dag = createDAG("twice")
+            .parse`${regular("p")} >> ${regular("q")}`;
 
         injectEdge(requireTask(dag, "p"), requireTask(dag, "q"));
         injectEdge(requireTask(dag, "p"), requireTask(dag, "q"));
@@ -656,8 +637,8 @@ describe("validate: foreign and inconsistent edges", () => {
     });
 
     it("does not report a duplicate foreign edge as inconsistent", () => {
-        const dag = createDAG("dup").chain(regular("p"));
-        const other = createDAG("elsewhere").chain(regular("q"));
+        const dag = createDAG("dup").parse`${regular("p")}`;
+        const other = createDAG("elsewhere").parse`${regular("q")}`;
 
         injectEdge(requireTask(dag, "p"), requireTask(other, "q"));
         injectEdge(requireTask(dag, "p"), requireTask(other, "q"));
@@ -668,8 +649,8 @@ describe("validate: foreign and inconsistent edges", () => {
     });
 
     it("reports a foreign edge recorded only upstream", () => {
-        const dag = createDAG("home").chain(regular("x"));
-        const other = createDAG("other").chain(regular("y"));
+        const dag = createDAG("home").parse`${regular("x")}`;
+        const other = createDAG("other").parse`${regular("y")}`;
 
         stateOf(requireTask(dag, "x")).upstream.add(requireTask(other, "y"));
 
@@ -687,9 +668,8 @@ describe("validate: foreign and inconsistent edges", () => {
 describe("validate: branch routing", () => {
     it("reports a route to an undeclared branch", () => {
         // The wiring method rejects this wiring, so build the state directly.
-        const dag = createDAG("routing")
-            .chain([route(["us"])])
-            .chain([regular("apac")]);
+        const dag = createDAG("routing").parse`${[route(["us"])]}`
+            .parse`${[regular("apac")]}`;
 
         injectEdge(requireTask(dag, "route"), requireTask(dag, "apac"));
 
@@ -709,8 +689,8 @@ describe("validate: branch routing", () => {
     });
 
     it("does not count a routing edge to another DAG", () => {
-        const dag = createDAG("routing").chain(route(["us"]));
-        const other = createDAG("other").chain(regular("us"));
+        const dag = createDAG("routing").parse`${route(["us"])}`;
+        const other = createDAG("other").parse`${regular("us")}`;
 
         injectEdge(requireTask(dag, "route"), requireTask(other, "us"));
 
@@ -730,7 +710,8 @@ describe("validate: branch routing", () => {
     });
 
     it("reports every declared branch when the branch routes nowhere", () => {
-        const dag = createDAG("pending").chain([route(["us", "eu", "apac"])]);
+        const dag = createDAG("pending")
+            .parse`${[route(["us", "eu", "apac"])]}`;
 
         expect(dag.validate()).toStrictEqual([
             {
@@ -752,7 +733,7 @@ describe("validate: branch routing", () => {
     });
 
     it("reports a repeated declared name once", () => {
-        const dag = createDAG("dupes").chain([route(["us", "us"])]);
+        const dag = createDAG("dupes").parse`${[route(["us", "us"])]}`;
 
         expect(dag.validate()).toStrictEqual([
             {
@@ -764,17 +745,17 @@ describe("validate: branch routing", () => {
     });
 
     it("reports nothing for a branch declaring an empty set", () => {
-        const dag = createDAG("unbounded").chain([freeBranch()]);
+        const dag = createDAG("unbounded").parse`${[freeBranch()]}`;
 
         // An empty declaration constrains nothing, so nothing is unrouted.
         expect(dag.validate()).toStrictEqual([]);
     });
 
     it("reports two branches that both miss their routing", () => {
-        const dag = createDAG("two").chain([
+        const dag = createDAG("two").parse`${[
             route(["us"], "geo"),
             route(["eu"], "region"),
-        ]);
+        ]}`;
 
         expect(codes(dag.validate())).toStrictEqual([
             DAG_VIOLATION_ENUM.UnroutedBranch,
@@ -787,9 +768,8 @@ describe("validate: branch routing", () => {
     });
 
     it("reports a branch wired to an existing task it never declared", () => {
-        const dag = createDAG("routing")
-            .chain([route(["us"])])
-            .chain([regular("apac")]);
+        const dag = createDAG("routing").parse`${[route(["us"])]}`
+            .parse`${[regular("apac")]}`;
 
         injectEdge(requireTask(dag, "route"), requireTask(dag, "apac"));
 
@@ -800,8 +780,10 @@ describe("validate: branch routing", () => {
     });
 
     it("reports a branch routed to a task that also has other upstreams", () => {
-        const dag = createDAG("shared").chain([route(["us"])], [regular("us")]);
-        const extra = createDAG("extra").chain(regular("feed"));
+        const dag = createDAG("shared")
+            .parse`${[route(["us"])]} >> ${[regular("us")]}`;
+
+        const extra = createDAG("extra").parse`${regular("feed")}`;
 
         injectEdge(requireTask(extra, "feed"), requireTask(dag, "us"));
 
@@ -811,7 +793,7 @@ describe("validate: branch routing", () => {
     });
 
     it("reports a branch declaring a name no task carries", () => {
-        const dag = createDAG("unroutable").chain([route(["nowhere"])]);
+        const dag = createDAG("unroutable").parse`${[route(["nowhere"])]}`;
 
         expect(dag.validate()).toStrictEqual([
             {
@@ -825,8 +807,8 @@ describe("validate: branch routing", () => {
 
     it("reports only the branch that misses its routing", () => {
         const dag = createDAG("partial")
-            .chain([route(["us"], "geo")], [regular("us")])
-            .chain([route(["eu"], "region")]);
+            .parse`${[route(["us"], "geo")]} >> ${[regular("us")]}`
+            .parse`${[route(["eu"], "region")]}`;
 
         expect(dag.validate().map(subjectsOf)).toStrictEqual([
             ["region", "eu"],
@@ -838,9 +820,9 @@ describe("validate: declared branch names", () => {
     it("reports an empty declared name", () => {
         const names: string[] = [""];
 
-        const dag = createDAG("invalid").chain([
+        const dag = createDAG("invalid").parse`${[
             branch("route", { branches: names, choose: () => names[0] ?? "" }),
-        ]);
+        ]}`;
 
         expect(dag.validate()).toStrictEqual([
             {
@@ -855,9 +837,9 @@ describe("validate: declared branch names", () => {
     it("reports a whitespace-only declared name", () => {
         const names: string[] = ["   "];
 
-        const dag = createDAG("invalid").chain([
+        const dag = createDAG("invalid").parse`${[
             branch("route", { branches: names, choose: () => names[0] ?? "" }),
-        ]);
+        ]}`;
 
         expect(codes(dag.validate())).toStrictEqual([
             DAG_VIOLATION_ENUM.InvalidDeclaredBranch,
@@ -867,9 +849,9 @@ describe("validate: declared branch names", () => {
     it("reports a declared name with internal whitespace", () => {
         const names: string[] = ["united states"];
 
-        const dag = createDAG("invalid").chain([
+        const dag = createDAG("invalid").parse`${[
             branch("route", { branches: names, choose: () => names[0] ?? "" }),
-        ]);
+        ]}`;
 
         expect(dag.validate()).toStrictEqual([
             {
@@ -885,9 +867,9 @@ describe("validate: declared branch names", () => {
         const longName = "a".repeat(251);
         const names: string[] = [longName];
 
-        const dag = createDAG("invalid").chain([
+        const dag = createDAG("invalid").parse`${[
             branch("route", { branches: names, choose: () => names[0] ?? "" }),
-        ]);
+        ]}`;
 
         expect(dag.validate()).toStrictEqual([
             {
@@ -901,9 +883,9 @@ describe("validate: declared branch names", () => {
     it("does not also report an invalid name as unrouted", () => {
         const names: string[] = [""];
 
-        const dag = createDAG("invalid").chain([
+        const dag = createDAG("invalid").parse`${[
             branch("route", { branches: names, choose: () => names[0] ?? "" }),
-        ]);
+        ]}`;
 
         expect(codes(dag.validate())).not.toContain(
             DAG_VIOLATION_ENUM.UnroutedBranch
@@ -911,7 +893,7 @@ describe("validate: declared branch names", () => {
     });
 
     it("reports a duplicate declared name once", () => {
-        const dag = createDAG("dupes").chain([route(["eu", "us", "eu"])]);
+        const dag = createDAG("dupes").parse`${[route(["eu", "us", "eu"])]}`;
 
         expect(dag.validate()).toStrictEqual([
             {
@@ -928,7 +910,7 @@ describe("validate: declared branch names", () => {
     });
 
     it("reports duplicates and unrouted names together", () => {
-        const dag = createDAG("mixed").chain([route(["us", "us", "eu"])]);
+        const dag = createDAG("mixed").parse`${[route(["us", "us", "eu"])]}`;
 
         expect(codes(dag.validate())).toStrictEqual([
             DAG_VIOLATION_ENUM.DuplicateDeclaredBranch,
@@ -941,18 +923,15 @@ describe("validate: declared branch names", () => {
     });
 
     it("accepts a hyphenated declared name", () => {
-        const dag = createDAG("valid").chain(route(["us-east"]), [
-            regular("us-east"),
-        ]);
+        const dag = createDAG("valid")
+            .parse`${route(["us-east"])} >> ${[regular("us-east")]}`;
 
         expect(dag.validate()).toStrictEqual([]);
     });
 
     it("accepts an underscored and numeric declared name", () => {
-        const dag = createDAG("valid").chain(route(["region_1", "42"]), [
-            regular("region_1"),
-            regular("42"),
-        ]);
+        const dag = createDAG("valid")
+            .parse`${route(["region_1", "42"])} >> ${[regular("region_1"), regular("42")]}`;
 
         expect(dag.validate()).toStrictEqual([]);
     });
@@ -960,9 +939,8 @@ describe("validate: declared branch names", () => {
 
 describe("validate: trigger tasks", () => {
     it("reports a trigger that starts its own DAG", () => {
-        const dag = createDAG("daily").chain(
-            trigger("relaunch", { dagId: "daily" })
-        );
+        const dag = createDAG("daily")
+            .parse`${trigger("relaunch", { dagId: "daily" })}`;
 
         expect(dag.validate()).toStrictEqual([
             {
@@ -975,9 +953,8 @@ describe("validate: trigger tasks", () => {
     });
 
     it("reports a self trigger whose target is padded", () => {
-        const dag = createDAG("daily").chain(
-            trigger("relaunch", { dagId: " daily " })
-        );
+        const dag = createDAG("daily")
+            .parse`${trigger("relaunch", { dagId: " daily " })}`;
 
         expect(codes(dag.validate())).toStrictEqual([
             DAG_VIOLATION_ENUM.SelfTrigger,
@@ -985,27 +962,25 @@ describe("validate: trigger tasks", () => {
     });
 
     it("accepts a trigger that starts another DAG", () => {
-        const dag = createDAG("parent").chain(
-            trigger("kick", { dagId: "child" })
-        );
+        const dag = createDAG("parent")
+            .parse`${trigger("kick", { dagId: "child" })}`;
 
         expect(dag.validate()).toStrictEqual([]);
     });
 
     it("accepts a trigger whose target differs only by case", () => {
-        const dag = createDAG("daily").chain(
-            trigger("kick", { dagId: "Daily" })
-        );
+        const dag = createDAG("daily")
+            .parse`${trigger("kick", { dagId: "Daily" })}`;
 
         expect(dag.validate()).toStrictEqual([]);
     });
 
     it("reports each self-triggering task separately", () => {
-        const dag = createDAG("loop").chain([
+        const dag = createDAG("loop").parse`${[
             trigger("first", { dagId: "loop" }),
             trigger("second", { dagId: "loop" }),
             trigger("third", { dagId: "other" }),
-        ]);
+        ]}`;
 
         expect(dag.validate().map(subjectsOf)).toStrictEqual([
             ["first", "loop"],
@@ -1014,9 +989,8 @@ describe("validate: trigger tasks", () => {
     });
 
     it("reports a self trigger alongside a branch finding", () => {
-        const dag = createDAG("loop")
-            .chain([route(["us"])])
-            .chain([trigger("relaunch", { dagId: "loop" })]);
+        const dag = createDAG("loop").parse`${[route(["us"])]}`
+            .parse`${[trigger("relaunch", { dagId: "loop" })]}`;
 
         expect(codes(dag.validate())).toStrictEqual([
             DAG_VIOLATION_ENUM.UnroutedBranch,
@@ -1027,16 +1001,15 @@ describe("validate: trigger tasks", () => {
 
 describe("validate: subject names", () => {
     it("names a declared branch, not a task, for an unrouted branch", () => {
-        const dag = createDAG("pending").chain([route(["us"])]);
+        const dag = createDAG("pending").parse`${[route(["us"])]}`;
 
         expect(hasTask(dag, "us")).toBeFalsy();
         expect(dag.validate()[0]?.subjects).toStrictEqual(["route", "us"]);
     });
 
     it("names a DAG, not a task, for a self trigger", () => {
-        const dag = createDAG("daily").chain(
-            trigger("relaunch", { dagId: "daily" })
-        );
+        const dag = createDAG("daily")
+            .parse`${trigger("relaunch", { dagId: "daily" })}`;
 
         expect(hasTask(dag, "daily")).toBeFalsy();
         expect(dag.validate()[0]?.subjects).toStrictEqual([
@@ -1046,7 +1019,7 @@ describe("validate: subject names", () => {
     });
 
     it("names only registered tasks for an edge finding", () => {
-        const dag = createDAG("etl").chain(regular("a"), regular("b"));
+        const dag = createDAG("etl").parse`${regular("a")} >> ${regular("b")}`;
 
         injectEdge(requireTask(dag, "b"), requireTask(dag, "a"));
 
@@ -1062,15 +1035,15 @@ describe("validate: declared branch routing", () => {
 
         // The wiring method enforces this, so validation never sees it; the
         // assertion pins the rule the glossary states.
-        expect(() => dag.chain([route(["us", "eu"])], [regular("us")])).toThrow(
-            'Branch "route" must route to declared branch "eu"'
-        );
+        expect(
+            () => dag.parse`${[route(["us", "eu"])]} >> ${[regular("us")]}`
+        ).toThrow('Branch "route" must route to declared branch "eu"');
     });
 
     it("rejects a superset when the extra target is not declared", () => {
         const dag = createDAG("extra")
-            .chain([route(["us"])], [regular("us")])
-            .chain([regular("apac")]);
+            .parse`${[route(["us"])]} >> ${[regular("us")]}`
+            .parse`${[regular("apac")]}`;
 
         injectEdge(requireTask(dag, "route"), requireTask(dag, "apac"));
 
@@ -1080,10 +1053,8 @@ describe("validate: declared branch routing", () => {
     });
 
     it("reports a branch that declares more than it routes", () => {
-        const dag = createDAG("subset").chain(
-            [route(["us", "eu"])],
-            [regular("us"), regular("eu")]
-        );
+        const dag = createDAG("subset")
+            .parse`${[route(["us", "eu"])]} >> ${[regular("us"), regular("eu")]}`;
 
         stateOf(requireTask(dag, "route")).downstream.delete(
             requireTask(dag, "eu")
@@ -1099,9 +1070,8 @@ describe("validate: declared branch routing", () => {
 
 describe("validate: reporting contract", () => {
     it("returns findings in edge, cycle, branch order", () => {
-        const dag = createDAG("mixed")
-            .chain([route(["us"])])
-            .chain(regular("a"), regular("b"));
+        const dag = createDAG("mixed").parse`${[route(["us"])]}`
+            .parse`${regular("a")} >> ${regular("b")}`;
 
         injectEdge(requireTask(dag, "b"), requireTask(dag, "a"));
         injectEdge(requireTask(dag, "b"), requireTask(dag, "b"));
@@ -1114,7 +1084,7 @@ describe("validate: reporting contract", () => {
     });
 
     it("returns a list of findings that callers can iterate", () => {
-        const dag = createDAG("pending").chain([route(["us"])]);
+        const dag = createDAG("pending").parse`${[route(["us"])]}`;
         const violations = dag.validate();
 
         expect(Array.isArray(violations)).toBeTruthy();
@@ -1122,14 +1092,14 @@ describe("validate: reporting contract", () => {
     });
 
     it("returns the same findings on repeated calls", () => {
-        const dag = createDAG("pending").chain([route(["us", "eu"])]);
+        const dag = createDAG("pending").parse`${[route(["us", "eu"])]}`;
 
         expect(dag.validate()).toStrictEqual(dag.validate());
     });
 
     it("names only registered tasks in edge findings", () => {
-        const dag = createDAG("home").chain(regular("a"));
-        const other = createDAG("other").chain(regular("b"));
+        const dag = createDAG("home").parse`${regular("a")}`;
+        const other = createDAG("other").parse`${regular("b")}`;
 
         injectEdge(requireTask(dag, "a"), requireTask(other, "b"));
 
@@ -1139,7 +1109,7 @@ describe("validate: reporting contract", () => {
     });
 
     it("keeps messages free of the DAG id for task-local findings", () => {
-        const dag = createDAG("pending").chain([route(["us"])]);
+        const dag = createDAG("pending").parse`${[route(["us"])]}`;
 
         expect(dag.validate()[0]?.message).toBe(
             'Branch "route" must route to declared branch "us"'
@@ -1147,7 +1117,8 @@ describe("validate: reporting contract", () => {
     });
 
     it("includes the DAG id for cycle findings", () => {
-        const dag = createDAG("named").chain(regular("a"), regular("b"));
+        const dag = createDAG("named")
+            .parse`${regular("a")} >> ${regular("b")}`;
 
         injectEdge(requireTask(dag, "b"), requireTask(dag, "a"));
 
