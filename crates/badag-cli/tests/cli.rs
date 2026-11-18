@@ -231,6 +231,7 @@ fn dev_lists_scripts_from_the_working_directory_dags_folder() {
     for name in ["zeta.ts", "alpha.mjs", "middle.js"] {
         fs::write(dags.join(name), "export default createDAG(\"fixture\");\n").unwrap();
     }
+    fs::write(dags.join("plain.ts"), "export const value = 1;\n").unwrap();
     for name in ["readme.md", "logo.png"] {
         fs::write(dags.join(name), "").unwrap();
     }
@@ -246,10 +247,10 @@ fn dev_lists_scripts_from_the_working_directory_dags_folder() {
     assert!(stderr.is_empty(), "{stderr}");
     assert_eq!(
         file_names(&output_dir),
-        ["alpha.js", "middle.js", "zeta.js"]
+        ["alpha.js", "middle.js", "plain.js", "zeta.js"]
     );
 
-    for name in ["alpha.js", "middle.js", "zeta.js"] {
+    for name in ["alpha.js", "middle.js", "plain.js", "zeta.js"] {
         let code = fs::read_to_string(output_dir.join(name)).unwrap();
         assert!(code.contains("export"), "{name} is not an ES module");
     }
@@ -324,18 +325,12 @@ fn dev_accepts_the_working_directory_as_input() {
 }
 
 #[test]
-fn dev_reports_files_without_a_default_export() {
+fn dev_reports_files_that_fail_to_bundle() {
     let cwd = temp_dir("dev-invalid");
     let dags = cwd.join("dags");
     fs::create_dir(&dags).unwrap();
-    fs::write(
-        dags.join("good.ts"),
-        "export default createDAG(\"fixture\");\n",
-    )
-    .unwrap();
-    fs::write(dags.join("missing.ts"), "export const value = 1;\n").unwrap();
+    fs::write(dags.join("plain.ts"), "export const value = 1;\n").unwrap();
     fs::write(dags.join("broken.ts"), "export default ;\n").unwrap();
-    fs::write(dags.join("not-dag.ts"), "export default 1;\n").unwrap();
 
     let output = badag_in(&cwd, &["dev"]);
 
@@ -343,16 +338,9 @@ fn dev_reports_files_without_a_default_export() {
     assert!(output.stdout.is_empty());
 
     let stderr = stderr_of(&output);
-    assert!(stderr.contains("invalid DAG modules"), "{stderr}");
-    assert!(stderr.contains("broken.ts: failed to parse"), "{stderr}");
-    assert!(
-        stderr.contains("missing.ts: missing default export"),
-        "{stderr}"
-    );
-    assert!(
-        stderr.contains("not-dag.ts: default export is not a DAG"),
-        "{stderr}"
-    );
+    assert!(stderr.contains("failed to bundle"), "{stderr}");
+    assert!(stderr.contains("broken.ts"), "{stderr}");
+    assert!(!stderr.contains("plain.ts"), "{stderr}");
 
     fs::remove_dir_all(&cwd).unwrap();
 }

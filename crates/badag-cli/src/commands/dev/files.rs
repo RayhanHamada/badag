@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 
-// DAG modules are imported as ESM; CommonJS files cannot contain a default export.
+// DAG modules are bundled as ESM; CommonJS inputs are not supported.
 const SCRIPT_EXTENSIONS: [&str; 4] = ["js", "mjs", "ts", "mts"];
 
 pub(super) fn find_dag_files(dir: &Path) -> Result<Vec<PathBuf>> {

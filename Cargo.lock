@@ -127,7 +127,6 @@ dependencies = [
  "oxc_ast",
  "oxc_parser",
  "oxc_span",
- "rayon",
  "rolldown",
  "rolldown_error",
  "tokio",

@@ -15,7 +15,6 @@ oxc_allocator = "0.158"
 oxc_ast = "0.158"
 oxc_parser = "0.158"
 oxc_span = "0.158"
-rayon.workspace = true
 rolldown.workspace = true
 rolldown_error.workspace = true
 tokio.workspace = true

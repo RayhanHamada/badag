@@ -3,10 +3,10 @@ use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 
-use super::{bundle, check, declarations, files, shutdown};
+use super::{bundle, declarations, files, shutdown};
 
 const DEBOUNCE: Duration = Duration::from_millis(75);
 
@@ -211,11 +211,6 @@ async fn rebuild(
 }
 
 async fn rebundle(context: &DevContext<'_>, path: &Path) -> Result<HashSet<PathBuf>> {
-    let violations = check::find_violations(&[path.to_path_buf()])?;
-    if !violations.is_empty() {
-        bail!("invalid DAG module:\n{}", violations.join("\n"));
-    }
-
     let watch_files = bundle::bundle(context.cwd, context.output_dir, path).await?;
     if context.types {
         declarations::emit_one(context.output_dir, path)?;

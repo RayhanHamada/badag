@@ -1,6 +1,5 @@
 mod ast;
 mod bundle;
-mod check;
 mod declarations;
 mod files;
 mod shutdown;
@@ -9,17 +8,12 @@ mod watch;
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 
 pub async fn run(types: bool, input: &Path) -> Result<()> {
     let cwd = std::env::current_dir().context("failed to read the working directory")?;
     let mut shutdown = shutdown::Signals::new()?;
     let files = files::find_dag_files(input)?;
-
-    let violations = check::find_violations(&files)?;
-    if !violations.is_empty() {
-        bail!("invalid DAG modules:\n{}", violations.join("\n"));
-    }
 
     let input_root = if input.is_absolute() {
         input.to_path_buf()
