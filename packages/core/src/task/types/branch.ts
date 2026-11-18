@@ -8,7 +8,7 @@ import type {
     TaskMetadata,
     TaskPayloadOf,
     TaskSchemas,
-    TrimTaskName,
+    TrimTaskId,
 } from "./base";
 
 /**
@@ -22,16 +22,16 @@ export type BranchChoice<BranchName extends string> =
  * Chooses the downstream branch or branches for a branch task.
  */
 export type BranchChooser<
-    Name extends string = string,
+    Id extends string = string,
     BranchName extends string = string,
     Payload = undefined,
-> = (ctx: TaskContext<Name, Payload>) => MaybePromise<BranchChoice<BranchName>>;
+> = (ctx: TaskContext<Id, Payload>) => MaybePromise<BranchChoice<BranchName>>;
 
 /**
- * Input to the branch factory after the name.
+ * Input to the branch factory after the id.
  */
 export interface BranchTaskInput<
-    Name extends string = string,
+    Id extends string = string,
     Branches extends readonly string[] = readonly string[],
     Input extends AnySchema = undefined,
     Output extends AnySchema = SchemaOf<BranchChoice<Branches[number]>>,
@@ -45,11 +45,7 @@ export interface BranchTaskInput<
     /**
      * Chooses the branch or branches to run.
      */
-    readonly choose: BranchChooser<
-        Name,
-        Branches[number],
-        TaskPayloadOf<Input>
-    >;
+    readonly choose: BranchChooser<Id, Branches[number], TaskPayloadOf<Input>>;
 }
 
 /**
@@ -59,16 +55,11 @@ export interface BranchTaskInput<
  * declared.
  */
 export interface BranchTaskDefinition<
-    Name extends string = string,
+    Id extends string = string,
     Branches extends readonly string[] = readonly string[],
     Input extends AnySchema = undefined,
     Output extends AnySchema = SchemaOf<BranchChoice<Branches[number]>>,
-> extends TaskDefinitionBase<
-    Name,
-    typeof TASK_KIND_ENUM.Branch,
-    Input,
-    Output
-> {
+> extends TaskDefinitionBase<Id, typeof TASK_KIND_ENUM.Branch, Input, Output> {
     /**
      * Branch names this task may choose.
      */
@@ -76,22 +67,18 @@ export interface BranchTaskDefinition<
     /**
      * Chooses the branch or branches to run.
      */
-    readonly choose: BranchChooser<
-        Name,
-        Branches[number],
-        TaskPayloadOf<Input>
-    >;
+    readonly choose: BranchChooser<Id, Branches[number], TaskPayloadOf<Input>>;
 }
 
 /**
  * Call signature of `branch()`.
  */
 export type CreateBranch = <
-    const Name extends string,
+    const Id extends string,
     const Branches extends readonly string[] = readonly string[],
     Input extends AnySchema = undefined,
     Output extends AnySchema = SchemaOf<BranchChoice<Branches[number]>>,
 >(
-    name: Name,
-    input: BranchTaskInput<TrimTaskName<Name>, Branches, Input, Output>
-) => BranchTaskDefinition<TrimTaskName<Name>, Branches, Input, Output>;
+    id: Id,
+    input: BranchTaskInput<TrimTaskId<Id>, Branches, Input, Output>
+) => BranchTaskDefinition<TrimTaskId<Id>, Branches, Input, Output>;

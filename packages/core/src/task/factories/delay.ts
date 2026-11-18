@@ -1,9 +1,9 @@
 import { assertNonNegativeDuration } from "../definition/duration";
 import { taskMetadata } from "../definition/metadata";
 import { taskSchemas } from "../definition/schemas";
-import { normalizeTaskName } from "../definition/task-name";
+import { normalizeTaskId } from "../definition/task-id";
 import { TASK_KIND_ENUM } from "../kind";
-import type { AnySchema, TrimTaskName } from "../types/base";
+import type { AnySchema, TrimTaskId } from "../types/base";
 import type { DelayTaskDefinition, DelayTaskInput } from "../types/delay";
 
 /**
@@ -13,22 +13,22 @@ import type { DelayTaskDefinition, DelayTaskInput } from "../types/delay";
  * responsible for honoring `durationMs`.
  */
 export function delay<
-    const Name extends string,
+    const Id extends string,
     Input extends AnySchema = undefined,
     Output extends AnySchema = undefined,
 >(
-    name: Name,
+    id: Id,
     input: DelayTaskInput<Input, Output>
-): DelayTaskDefinition<TrimTaskName<Name>, Input, Output> {
+): DelayTaskDefinition<TrimTaskId<Id>, Input, Output> {
     assertNonNegativeDuration("durationMs", input.durationMs);
 
     const definition = {
         kind: TASK_KIND_ENUM.Delay,
-        name: normalizeTaskName(name),
+        id: normalizeTaskId(id),
         durationMs: input.durationMs,
         ...taskMetadata(input),
         ...taskSchemas(input),
-    } satisfies DelayTaskDefinition<TrimTaskName<Name>, Input, Output>;
+    } satisfies DelayTaskDefinition<TrimTaskId<Id>, Input, Output>;
 
     return definition;
 }

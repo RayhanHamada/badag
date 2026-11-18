@@ -1,8 +1,8 @@
 /** Audit branch declarations against the tasks they route to. */
 
-import { isTaskName } from "../../task/definition/task-name";
+import { isTaskId } from "../../task/definition/task-id";
 import { declaredBranches } from "../declared-branches";
-import { quoteNames } from "../format";
+import { quoteValues } from "../format";
 import type { DAGTask } from "../registered-task";
 import { DAG_VIOLATION_ENUM } from "./violation";
 import type { DAGViolation } from "./violation";
@@ -28,18 +28,18 @@ export function findBranchViolations(
         }
 
         const routed = [...task.downstream].flatMap((downstream) =>
-            registered.has(downstream) ? [downstream.name] : []
+            registered.has(downstream) ? [downstream.id] : []
         );
 
         // One finding per branch name, so a repeated declaration is reported
         // once and a name that can never be routed to is not also reported as
         // merely unrouted.
         for (const name of new Set(declared)) {
-            if (!isTaskName(name)) {
+            if (!isTaskId(name)) {
                 violations.push({
                     code: DAG_VIOLATION_ENUM.InvalidDeclaredBranch,
-                    message: `Branch "${task.name}" declares "${name}", which is not a valid task name`,
-                    subjects: [task.name, name],
+                    message: `Branch "${task.id}" declares "${name}", which is not a valid task id`,
+                    subjects: [task.id, name],
                 });
                 continue;
             }
@@ -47,8 +47,8 @@ export function findBranchViolations(
             if (declared.indexOf(name) !== declared.lastIndexOf(name)) {
                 violations.push({
                     code: DAG_VIOLATION_ENUM.DuplicateDeclaredBranch,
-                    message: `Branch "${task.name}" declares "${name}" more than once`,
-                    subjects: [task.name, name],
+                    message: `Branch "${task.id}" declares "${name}" more than once`,
+                    subjects: [task.id, name],
                 });
                 continue;
             }
@@ -56,8 +56,8 @@ export function findBranchViolations(
             if (!routed.includes(name)) {
                 violations.push({
                     code: DAG_VIOLATION_ENUM.UnroutedBranch,
-                    message: `Branch "${task.name}" must route to declared branch "${name}"`,
-                    subjects: [task.name, name],
+                    message: `Branch "${task.id}" must route to declared branch "${name}"`,
+                    subjects: [task.id, name],
                 });
             }
         }
@@ -66,8 +66,8 @@ export function findBranchViolations(
             if (!declared.includes(name)) {
                 violations.push({
                     code: DAG_VIOLATION_ENUM.UndeclaredBranchTarget,
-                    message: `Branch "${task.name}" cannot route to "${name}"; declared branches are ${quoteNames(declared)}`,
-                    subjects: [task.name, name],
+                    message: `Branch "${task.id}" cannot route to "${name}"; declared branches are ${quoteValues(declared)}`,
+                    subjects: [task.id, name],
                 });
             }
         }

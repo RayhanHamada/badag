@@ -9,7 +9,7 @@ import type { DAGTask } from "./registered-task";
  */
 export function sortTopologically(
     tasks: ReadonlyMap<string, DAGTask>,
-    dagName: string
+    dagId: string
 ): DAGTask[] {
     const remainingDeps = new Map<DAGTask, number>();
     const ready: DAGTask[] = [];
@@ -36,7 +36,7 @@ export function sortTopologically(
 
             if (remaining === undefined) {
                 throw new Error(
-                    `Task "${downstream.name}" is not registered in DAG "${dagName}"`
+                    `Task "${downstream.id}" is not registered in DAG "${dagId}"`
                 );
             }
 
@@ -51,7 +51,7 @@ export function sortTopologically(
     }
 
     if (order.length !== tasks.size) {
-        throw new Error(`DAG "${dagName}" contains a cycle`);
+        throw new Error(`DAG "${dagId}" contains a cycle`);
     }
 
     return order;

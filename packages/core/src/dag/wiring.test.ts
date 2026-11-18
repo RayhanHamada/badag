@@ -17,22 +17,20 @@ import type { WiringOperand } from "./wiring";
 // Callback identity is reference-based, so duplicate definitions must share it.
 const rawFn = (): string => "raw";
 
-// Captures its argument, so every call produces the same callback source text.
+// Captures its argument, so reusing the factory yields distinct callbacks.
 const syncTableFn = (table: string) => () => table;
 
 function downstreamNames(dag: DAG): Record<string, string[]> {
     return Object.fromEntries(
         [...dag.tasks.values()].map((task) => [
-            task.name,
-            [...task.downstream]
-                .map((downstream) => downstream.name)
-                .toSorted(),
+            task.id,
+            [...task.downstream].map((downstream) => downstream.id).toSorted(),
         ])
     );
 }
 
 function namesOf(dag: DAG): string[] {
-    return dag.topologicalSort().map((task) => task.name);
+    return dag.topologicalSort().map((task) => task.id);
 }
 
 function requireTask(dag: DAG, name: string): DAGTask<string> {
@@ -320,7 +318,7 @@ ${c} >> ${a}`
         expect(leftward.steps.toReversed()).toStrictEqual(rightward.steps);
     });
 
-    it("includes the DAG name in every message", () => {
+    it("includes the DAG id in every message", () => {
         expect(() => named`${a} & ${b}`).toThrow(/"analytics-nightly"/u);
         expect(() => named`${a} >> ${[]}`).toThrow(/"analytics-nightly"/u);
         expect(() => named``).toThrow(/"analytics-nightly"/u);
@@ -340,7 +338,7 @@ ${c} >> ${a}`
         expect(
             () =>
                 // @ts-expect-error - deliberately malformed for the runtime guard
-                parse`${{ name: "n" }} >> ${b}`
+                parse`${{ id: "n" }} >> ${b}`
         ).toThrow(/expects tasks; received/u);
     });
 });
@@ -503,7 +501,7 @@ describe("DAG.parse", () => {
         expect(dag.getTask("fresh")).toBeUndefined();
     });
 
-    it("rejects a task name collision without registering", () => {
+    it("rejects a task id collision without registering", () => {
         const { dag } = buildChain();
         const collision = createTask("a", { fn: () => "other" });
 
@@ -565,13 +563,14 @@ describe("DAG.parse", () => {
         });
     });
 
-    it("builds one graph across parse and chain calls", () => {
+    it("builds one graph across parse calls", () => {
         const a = createTask("a", { fn: () => "a" });
         const b = createTask("b", { fn: () => "b" });
         const c = createTask("c", { fn: () => "c" });
         const d = createTask("d", { fn: () => "d" });
 
-        const dag = createDAG("etl").chain(a, b).parse`${b} >> ${[c, d]}`;
+        const dag = createDAG("etl").parse`${a} >> ${b}`
+            .parse`${b} >> ${[c, d]}`;
 
         expect(downstreamNames(dag)).toStrictEqual({
             a: ["b"],
@@ -582,12 +581,12 @@ describe("DAG.parse", () => {
         expect(namesOf(dag)).toStrictEqual(["a", "b", "c", "d"]);
     });
 
-    it("continues a parse-built graph through chain", () => {
+    it("continues a parse-built graph with another parse call", () => {
         const a = createTask("a", { fn: () => "a" });
         const b = createTask("b", { fn: () => "b" });
         const c = createTask("c", { fn: () => "c" });
 
-        const dag = createDAG("etl").parse`${a} >> ${b}`.chain(b, c);
+        const dag = createDAG("etl").parse`${a} >> ${b}`.parse`${b} >> ${c}`;
 
         expect(downstreamNames(dag)).toStrictEqual({
             a: ["b"],
@@ -624,20 +623,20 @@ describe("DAG.parse", () => {
         expect(handle.definition).toBe(extract);
     });
 
-    it("assigns the same task ID as chain for the same definition", () => {
+    it("assigns the same task id in another DAG for the same definition", () => {
         const definition = createTask("extract", { fn: () => "raw" });
 
-        const viaParse = requireTask(
-            createDAG("parse").parse`${definition}`,
+        const viaFirst = requireTask(
+            createDAG("first").parse`${definition}`,
             "extract"
         );
 
-        const viaChain = requireTask(
-            createDAG("chain").chain(definition),
+        const viaSecond = requireTask(
+            createDAG("second").parse`${definition}`,
             "extract"
         );
 
-        expect(viaParse.id).toBe(viaChain.id);
+        expect(viaFirst.id).toBe(viaSecond.id);
     });
 
     it("registers every task kind through the notation", () => {
@@ -645,7 +644,7 @@ describe("DAG.parse", () => {
         const ready = sensor("ready", { predicate: () => true });
         const settle = delay("settle", { durationMs: 1000 });
         const route = shortCircuit("gate", { condition: () => false });
-        const start = trigger("start-child", { dagName: "child" });
+        const start = trigger("start-child", { dagId: "child" });
 
         const dag = createDAG("kinds")
             .parse`${regular} >> ${ready} >> ${settle} >> ${route} >> ${start}`;
@@ -659,7 +658,7 @@ describe("DAG.parse", () => {
         ]);
     });
 
-    it("serializes upstream and downstream names after parse", () => {
+    it("serializes upstream and downstream ids after parse", () => {
         const a = createTask("a", { fn: () => "a" });
         const b = createTask("b", { fn: () => "b" });
         const c = createTask("c", { fn: () => "c" });
@@ -667,11 +666,7 @@ describe("DAG.parse", () => {
         const json = createDAG("etl").parse`${a} >> ${b} << ${c}`.toJSON();
 
         expect(
-            json.tasks.map((task) => [
-                task.name,
-                task.upstream,
-                task.downstream,
-            ])
+            json.tasks.map((task) => [task.id, task.upstream, task.downstream])
         ).toStrictEqual([
             ["a", [], ["b"]],
             ["b", ["a", "c"], []],
@@ -708,17 +703,22 @@ describe("DAG.parse", () => {
         });
     });
 
-    it("accepts dashed and unicode task names", () => {
+    it("accepts dotted, dashed, and unicode task ids", () => {
         const first = createTask("extract-daily", { fn: () => 0 });
         const second = createTask("ünïcode_task", { fn: () => 0 });
-        const dag = createDAG("etl").parse`${first} >> ${second}`;
+        const third = createTask("extract.users", { fn: () => 0 });
+        const dag = createDAG("etl").parse`${first} >> ${second} >> ${third}`;
 
         expect([...dag.tasks.keys()]).toStrictEqual([
             "extract-daily",
             "ünïcode_task",
+            "extract.users",
         ]);
         expect(downstreamNames(dag)["extract-daily"]).toStrictEqual([
             "ünïcode_task",
+        ]);
+        expect(downstreamNames(dag)["ünïcode_task"]).toStrictEqual([
+            "extract.users",
         ]);
     });
 
@@ -750,7 +750,7 @@ describe("DAG.parse", () => {
         expect(
             () =>
                 dag.parse`${createTask("sync", { fn: syncTableFn("orders") })}`
-        ).toThrow(/different callback instance/u);
+        ).toThrow(/different behavior/u);
         expect(dag.tasks.size).toBe(1);
     });
 
@@ -808,7 +808,7 @@ describe("DAG.parse", () => {
         });
     });
 
-    it("rejects a name collision with a task registered by parse", () => {
+    it("rejects an id collision with a task registered by parse", () => {
         const a = createTask("a", { fn: () => "a" });
         const b = createTask("b", { fn: () => "b" });
         const dag = createDAG("etl").parse`${a}`;
@@ -870,7 +870,7 @@ describe("DAG.parse", () => {
 
         expect(dag.tasks.size).toBe(42);
         expect(namesOf(dag)).toStrictEqual(
-            definitions.map((definition) => definition.name)
+            definitions.map((definition) => definition.id)
         );
     });
 

@@ -84,17 +84,13 @@ export type AnyTaskFn = TaskFn<never, never, unknown>;
  * Context passed as the first argument to every task callback.
  */
 export interface TaskContext<
-    TaskName extends string = string,
+    TaskId extends string = string,
     Payload = undefined,
 > {
     /**
-     * Content-derived ID of the registered task.
+     * ID of the task whose callback is running.
      */
-    readonly id: string;
-    /**
-     * Name of the task whose callback is running.
-     */
-    readonly name: TaskName;
+    readonly id: TaskId;
     /**
      * Value supplied to the task; typed by the task's input schema.
      */
@@ -104,21 +100,21 @@ export interface TaskContext<
 /**
  * A task callback.
  *
- * The task's context comes first; `name` narrows to the task's literal name
- * when a factory infers it, `Payload` comes from the input schema, and the
- * result is checked against the output schema.
+ * The task's context comes first; `id` narrows to the task's literal id when a
+ * factory infers it, `Payload` comes from the input schema, and the result is
+ * checked against the output schema.
  */
 export type TaskFn<
-    TaskName extends string = string,
+    TaskId extends string = string,
     Payload = undefined,
     Result = unknown,
-> = (ctx: TaskContext<TaskName, Payload>) => MaybePromise<Result>;
+> = (ctx: TaskContext<TaskId, Payload>) => MaybePromise<Result>;
 
 /** A value that may be returned synchronously or as a promise. */
 export type MaybePromise<Value> = PromiseLike<Value> | Value;
 
-/** Whitespace trimmed from a task name by the factories. */
-type TaskNameWhitespace =
+/** Whitespace trimmed from a task id by the factories. */
+type TaskIdWhitespace =
     | " "
     | "\n"
     | "\t"
@@ -145,20 +141,14 @@ type TaskNameWhitespace =
     | "\u3000"
     | "\uFEFF";
 
-type TrimTaskNameEnd<Name extends string> =
-    Name extends `${infer Rest}${TaskNameWhitespace}`
-        ? TrimTaskNameEnd<Rest>
-        : Name;
+type TrimTaskIdEnd<Id extends string> =
+    Id extends `${infer Rest}${TaskIdWhitespace}` ? TrimTaskIdEnd<Rest> : Id;
 
-type TrimTaskNameStart<Name extends string> =
-    Name extends `${TaskNameWhitespace}${infer Rest}`
-        ? TrimTaskNameStart<Rest>
-        : Name;
+type TrimTaskIdStart<Id extends string> =
+    Id extends `${TaskIdWhitespace}${infer Rest}` ? TrimTaskIdStart<Rest> : Id;
 
-/** The task name after a factory trims surrounding whitespace. */
-export type TrimTaskName<Name extends string> = TrimTaskNameStart<
-    TrimTaskNameEnd<Name>
->;
+/** The task id after a factory trims surrounding whitespace. */
+export type TrimTaskId<Id extends string> = TrimTaskIdStart<TrimTaskIdEnd<Id>>;
 
 /**
  * Per-task execution settings stored on the task; the SDK never interprets them.
@@ -196,7 +186,7 @@ export interface TaskMetadata {
  * The shape shared by every task definition.
  */
 export interface TaskDefinitionBase<
-    Name extends string,
+    Id extends string,
     Kind extends TaskKind,
     Input extends AnySchema = undefined,
     Output extends AnySchema = undefined,
@@ -207,9 +197,9 @@ export interface TaskDefinitionBase<
      */
     readonly kind: Kind;
     /**
-     * Unique name within the owning DAG.
+     * Unique id within the owning DAG.
      */
-    readonly name: Name;
+    readonly id: Id;
     /**
      * Normalized trigger rule; always present on a definition.
      */

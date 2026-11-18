@@ -8,22 +8,22 @@ import type {
     TaskMetadata,
     TaskPayloadOf,
     TaskSchemas,
-    TrimTaskName,
+    TrimTaskId,
 } from "./base";
 
 /**
  * Condition evaluated by a short-circuit task.
  */
 export type ShortCircuitCondition<
-    Name extends string = string,
+    Id extends string = string,
     Payload = undefined,
-> = (ctx: TaskContext<Name, Payload>) => MaybePromise<boolean>;
+> = (ctx: TaskContext<Id, Payload>) => MaybePromise<boolean>;
 
 /**
- * Input to the short-circuit factory after the name.
+ * Input to the short-circuit factory after the id.
  */
 export interface ShortCircuitTaskInput<
-    Name extends string = string,
+    Id extends string = string,
     Input extends AnySchema = undefined,
     Output extends AnySchema = undefined,
 >
@@ -31,7 +31,7 @@ export interface ShortCircuitTaskInput<
     /**
      * Condition that controls whether downstream tasks run.
      */
-    readonly condition: ShortCircuitCondition<Name, TaskPayloadOf<Input>>;
+    readonly condition: ShortCircuitCondition<Id, TaskPayloadOf<Input>>;
 }
 
 /**
@@ -41,11 +41,11 @@ export interface ShortCircuitTaskInput<
  * its result is whether downstream tasks should run.
  */
 export interface ShortCircuitTaskDefinition<
-    Name extends string = string,
+    Id extends string = string,
     Input extends AnySchema = undefined,
     Output extends AnySchema = SchemaOf<boolean>,
 > extends TaskDefinitionBase<
-    Name,
+    Id,
     typeof TASK_KIND_ENUM.ShortCircuit,
     Input,
     Output
@@ -53,17 +53,17 @@ export interface ShortCircuitTaskDefinition<
     /**
      * Condition that controls whether downstream tasks run.
      */
-    readonly condition: ShortCircuitCondition<Name, TaskPayloadOf<Input>>;
+    readonly condition: ShortCircuitCondition<Id, TaskPayloadOf<Input>>;
 }
 
 /**
  * Call signature of `shortCircuit()`.
  */
 export type CreateShortCircuit = <
-    const Name extends string,
+    const Id extends string,
     Input extends AnySchema = undefined,
     Output extends AnySchema = SchemaOf<boolean>,
 >(
-    name: Name,
-    input: ShortCircuitTaskInput<TrimTaskName<Name>, Input, Output>
-) => ShortCircuitTaskDefinition<TrimTaskName<Name>, Input, Output>;
+    id: Id,
+    input: ShortCircuitTaskInput<TrimTaskId<Id>, Input, Output>
+) => ShortCircuitTaskDefinition<TrimTaskId<Id>, Input, Output>;

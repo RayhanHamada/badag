@@ -4,17 +4,16 @@ An Airflow-inspired DAG builder for TypeScript. Declare tasks, wire dependencies
 
 - Source-only internal package: `exports` points at `src/index.ts`, so there is no build step or published artifact.
 - Every edge inserted through the public methods is validated, so a `DAG` cannot become cyclic or cross DAG boundaries.
-- Task names stay literal types; graph links are `ReadonlySet`, so they cannot be mutated by accident.
+- Task ids stay literal types; graph links are `ReadonlySet`, so they cannot be mutated by accident.
 
 ## Source layout
 
 | Path | Responsibility |
 | --- | --- |
-| `src/dag/` | The `DAG` aggregate, registered task handles, chain-time type checks, wiring, graph audit, and serialization |
+| `src/dag/` | The `DAG` aggregate, registered task handles, parse-time type checks, wiring, graph audit, and serialization |
 | `src/task/` | Task kinds and their public types, one factory per kind, and the definition helpers shared by those factories |
-| `src/hash/` | Task identity hashing |
 
-Within `dag/`, `chain/` holds only compile-time bookkeeping, `audit/` holds the read-only violation rules, and runtime modules sit at the folder root. Within `task/`, `types/` has one module per kind plus the shared base, `factories/` holds the six public factories, and `definition/` holds naming, metadata, schema, identity, and duration helpers.
+Within `dag/`, `typing/` holds only compile-time bookkeeping, `audit/` holds the read-only violation rules, and runtime modules sit at the folder root. Within `task/`, `types/` has one module per kind plus the shared base, `factories/` holds the six public factories, and `definition/` holds id validation, metadata, schema, behavior, and duration helpers.
 
 ## Import
 
@@ -43,6 +42,8 @@ import type {
     BranchTaskDefinition,
     CreateTask,
     DAGJson,
+    DAGId,
+    DAGIdRegistry,
     DAGTask,
     DelayTaskDefinition,
     SensorTaskDefinition,
@@ -98,12 +99,12 @@ const sourceReady = sensor("source-ready", {
 });
 
 const extract = task("extract", {
-    fn: (ctx) => ({ source: ctx.name, rows: 42 }),
+    fn: (ctx) => ({ source: ctx.id, rows: 42 }),
 });
 
 const route = branch("route", {
     branches: ["us", "eu"], // the only names routing may follow
-    choose: (ctx) => (ctx.name === "route" ? "us" : "eu"),
+    choose: (ctx) => (ctx.id === "route" ? "us" : "eu"),
 });
 
 const us = task("us", { fn: () => "us: priced" });
@@ -118,25 +119,20 @@ const gate = shortCircuit("gate", {
 const report = task("report", { fn: () => "report: sent" });
 
 const startChild = trigger("start-child", {
-    dagName: "publish",
+    dagId: "publish",
     waitForCompletion: true,
 });
 
-const dag = createDAG("pricing")
-    .chain(sourceReady, extract)
-    .chain(extract, route)
-    .chain(route, [us, eu]) // a branch can route to every declared name
-    .chain([us, eu], settle)
-    .chain(settle, gate)
-    .chain(gate, report)
-    .chain(report, startChild);
+const dag = createDAG("pricing").parse`${sourceReady} >> ${extract} >> ${route}`
+    .parse`${route} >> ${[us, eu]}` // a branch can route to every declared name
+    .parse`${[us, eu]} >> ${settle} >> ${gate} >> ${report} >> ${startChild}`;
 ```
 
 `topologicalSort()` returns `["source-ready", "extract", "route", "us", "eu", "settle", "gate", "report", "start-child"]`. Each registration keeps its kind, so a scheduler can tell a poll from a wait from a hand-off:
 
 ```ts
 for (const registered of dag.topologicalSort()) {
-    console.log(registered.name, registered.definition.kind);
+    console.log(registered.id, registered.definition.kind);
 }
 
 // source-ready  sensor
@@ -154,7 +150,7 @@ The SDK stores the graph and runs nothing; [Running tasks](#running-tasks) shows
 
 ## Declaring tasks
 
-Regular task definitions come from `task()`; every task factory produces a definition that `chain()` registers in the DAG as it links wiring sets:
+Regular task definitions come from `task()`; every task factory produces a definition that `parse()` registers in the DAG as it wires the graph:
 
 ```ts
 import { createDAG, task } from "@badag/core";
@@ -166,38 +162,37 @@ const extract = task("extract", {
 });
 const load = task("load", { fn: () => "stored" });
 
-const dag = createDAG("etl").chain(extract, load);
+const dag = createDAG("etl").parse`${extract} >> ${load}`;
 ```
 
-Every task callback receives its task context as the first argument. The context contains the registered task's ID and its literal name:
+Every task callback receives its task context as the first argument. The context contains the task's literal id:
 
 ```ts
 import { createDAG, task, TASK_KIND_ENUM } from "@badag/core";
 
 const report = task("report", {
-    fn: (ctx) => `${ctx.id}:${ctx.name.toUpperCase()}`,
+    fn: (ctx) => ctx.id.toUpperCase(),
 });
 
-const dag = createDAG("etl").chain(report);
+const dag = createDAG("etl").parse`${report}`;
 const reportTask = dag.getTask("report");
 
 if (reportTask?.definition.kind === TASK_KIND_ENUM.Task) {
     await reportTask.definition.fn({
         id: reportTask.id,
-        name: reportTask.definition.name,
         payload: undefined,
-    }); // "<task-id>:REPORT"
+    }); // "REPORT"
 }
 ```
 
-A task definition has no ID; the ID exists once the definition is registered as a `DAGTask`.
+A task definition carries its `id`, and registration stores exactly that id on the `DAGTask`.
 
-- `chain()` registers every definition it encounters before linking. Definitions already registered in the DAG are reused, so repeated calls are idempotent; the first registration's metadata is kept and a duplicate's metadata is discarded. Invalid duplicates and cycles are rejected at compile time when the returned DAG is kept.
-- Every batch is transactional: a task name collision, duplicate task ID, self-edge, cross-DAG edge, or cycle leaves both the task registry and the edges unchanged.
-- A single wiring set registers without adding edges, which is how isolated tasks are declared: `dag.chain([extract, load])`.
+- `parse()` registers every definition it encounters before linking. A definition whose id is already registered is reused when it describes the same behavior, so repeated calls are idempotent; the first registration's metadata is kept and a duplicate's metadata is discarded. Reusing an id with different behavior is rejected at compile time when the returned DAG is kept; cycles are rejected when the call runs.
+- Every batch is transactional: an id reused with different behavior, a self-edge, a cross-DAG edge, or a cycle leaves both the task registry and the edges unchanged.
+- A single operand registers without adding edges, which is how isolated tasks are declared: `` dag.parse`${[extract, load]}` ``.
 - `addDependency()`, `addDependencies()`, `setUpstream()`, `setDownstream()`, and `dependsOn()` also register definitions on first use.
-- The first argument is the task name. It is trimmed, must be unique inside the DAG, and is preserved as a literal type: `"  extract  "` becomes `"extract"`. Words may be joined with `-` or `_`; other separators are rejected.
-- A regular task's `fn`, a sensor's `predicate`, a branch's `choose`, and a short-circuit's `condition` receive `{ id, name }` as their first argument. The DAG never calls them; `id` is assigned when the definition is registered.
+- The first argument is the task id. It is trimmed, must be unique inside the DAG, and is preserved as a literal type: `"  extract  "` becomes `"extract"`. Ids follow Airflow's `task_id` convention: letters, numbers, `_`, `.`, and `-`, at most 250 characters; internal whitespace and other punctuation are rejected.
+- A regular task's `fn`, a sensor's `predicate`, a branch's `choose`, and a short-circuit's `condition` receive `{ id }` as their first argument, with `id` narrowed to the declaration's literal id.
 - `triggerRule` defaults to `all_success`; the SDK stores it for the scheduler and does not evaluate it.
 - `description` is an optional human-readable string stored verbatim on the definition and registered task.
 - `config` is stored verbatim on the registered task; the SDK does not interpret it.
@@ -229,20 +224,22 @@ report.triggerRule; // "all_done"
 
 ### Reusing a definition
 
-`task()` builds a regular task definition outside any DAG. Every factory trims and validates the name there; a task ID is assigned only when the definition is registered as a `DAGTask`. The ID is a synchronous 128-bit FNV-1a hash over the task name and the definition's behavior source: a regular task's `fn` source, a sensor's `predicate` source, a branch's `choose` source, a short-circuit's `condition` source, a delay's `durationMs`, or a trigger's target DAG and wait flag. The hash uses only standard platform APIs (`TextEncoder` and `BigInt`), so it behaves identically in Node, Bun, browsers, and Cloudflare Workers. Description, config, trigger rule, and sensor polling interval are not hashed. Callback kinds hash the callback's source text, so a task ID is stable within one build but not across builds: minification rewrites the source and therefore the ID. Treat task IDs as build-local. Register the definition wherever you need it — each `DAG` tracks its own names and task IDs:
+`task()` builds a regular task definition outside any DAG. Every factory trims and validates the id there, and the definition carries that id. Registering the definition in any DAG stores the same id, so one definition can be reused across DAGs without recomputing anything.
+
+Within one DAG, a task is identified only by its id. Registering the same id again reuses the existing task when the behavior matches; metadata differences are ignored and the first registration wins. Reusing an id with different behavior throws.
 
 ```ts
 import { task } from "@badag/core";
 
 const nightly = task("cleanup", { fn: () => removeStaleRows() });
 
-const etl = createDAG("etl").chain(nightly);
-const audit = createDAG("audit").chain(nightly);
+const etl = createDAG("etl").parse`${nightly}`;
+const audit = createDAG("audit").parse`${nightly}`;
 ```
 
-#### Callback identity cannot see captured values
+#### Duplicate ids must describe the same behavior
 
-Source text records what a callback is written as, not what it closes over. A factory that captures a value produces the same source text for every value, so two tasks with that factory's shape and the same name share a task ID. The SDK can only treat them as a duplicate definition when they are the same callback instance:
+A callable kind compares callback references. Reusing the same definition or callback instance is a duplicate; a different function reference under the same id is a conflict, even when the captured values happen to be equal, because the SDK cannot inspect closures. Declarative kinds compare the fields that determine their behavior, such as `durationMs` or a trigger's target and wait flag.
 
 ```ts
 import { createDAG, task } from "@badag/core";
@@ -250,32 +247,31 @@ import { createDAG, task } from "@badag/core";
 const syncTable = (table: string) => () => `syncing ${table}`;
 const syncCustomers = syncTable("customers");
 
-const dag = createDAG("warehouse")
-    .chain(task("sync", { fn: syncCustomers }))
-    .chain(task("sync", { fn: syncCustomers }));
+const dag = createDAG("warehouse").parse`${task("sync", { fn: syncCustomers })}`
+    .parse`${task("sync", { fn: syncCustomers })}`;
 
 dag.tasks.size; // 1 — the same callback instance is a duplicate definition
 ```
 
-A different callback instance with the same source is rejected instead of silently dropped, because the SDK cannot tell whether the captured values differ:
+A different callback instance under the same id is rejected instead of silently dropped, because the SDK cannot tell whether the captured values differ:
 
 ```ts
 import { createDAG, task } from "@badag/core";
 
 const syncTable = (table: string) => () => `syncing ${table}`;
 
-const dag = createDAG("warehouse").chain(
-    task("sync", { fn: syncTable("customers") })
-);
+const dag = createDAG("warehouse").parse`${task("sync", {
+    fn: syncTable("customers"),
+})}`;
 
-dag.chain(task("sync", { fn: syncTable("orders") }));
-// throws: Task "sync" ... has the same callback source as an existing
-// definition but a different callback instance ...
+dag.parse`${task("sync", { fn: syncTable("orders") })}`;
+// throws: Task "sync" already exists in DAG "warehouse" with different
+// behavior; reuse the same definition or choose a different task id
 ```
 
-Bound functions fail the same way: every `bind()` result stringifies to `function () { [native code] }`, so two same-name bound tasks share a task ID and are rejected as different callback instances.
+Bound functions behave the same way: two separate `bind()` results are different callback instances, so they conflict under one id. Reuse one bound reference when both registrations are meant to be the same task.
 
-A task name is unique inside a DAG, so a same-name pair can never produce two tasks. To declare both, put the captured value in the name:
+An id is unique inside a DAG, so a capture-only pair needs distinct ids:
 
 ```ts
 import { createDAG, task } from "@badag/core";
@@ -283,17 +279,17 @@ import { createDAG, task } from "@badag/core";
 const syncTable = (table: string) => () => `syncing ${table}`;
 
 const dag = createDAG("warehouse")
-    .chain(task("sync-customers", { fn: syncTable("customers") }))
-    .chain(task("sync-orders", { fn: syncTable("orders") }));
+    .parse`${task("sync-customers", { fn: syncTable("customers") })}`
+    .parse`${task("sync-orders", { fn: syncTable("orders") })}`;
 
-dag.tasks.size; // 2 — distinct names, distinct tasks
+dag.tasks.size; // 2 — distinct ids, distinct tasks
 ```
 
-Reuse the same callback instance when the definitions are intentionally the same task; use distinct names when the captured values must both run. See [ADR 0008](../../docs/adr/0008-duplicate-callbacks-must-be-the-same-function.md) for why a matching source is rejected rather than deduplicated.
+Reuse the same definition or callback instance when the registrations are intentionally the same task; use distinct ids when the captured values must both run. See [ADR 0009](../../docs/adr/0009-task-id-is-declared.md) for why identity is the declared id.
 
 ## Task kinds
 
-Every factory returns a task definition with a common shape: `kind`, `name`, and optional `description`, `config`, and `triggerRule`. Behavior fields are task-specific: a regular task has `fn`, a sensor has `predicate`, a delay has `durationMs`, a branch has `choose`, a short-circuit has `condition`, and a trigger has `dagName`/`waitForCompletion`. The registered `DAGTask` exposes `kind` and the original `definition`; there is no universal task callback.
+Every factory returns a task definition with a common shape: `kind`, `id`, and optional `description`, `config`, and `triggerRule`. Behavior fields are task-specific: a regular task has `fn`, a sensor has `predicate`, a delay has `durationMs`, a branch has `choose`, a short-circuit has `condition`, and a trigger has `dagId`/`waitForCompletion`. The registered `DAGTask` exposes `kind` and the original `definition`; there is no universal task callback.
 
 ```ts
 import {
@@ -317,7 +313,7 @@ const ready = sensor("ready", {
 const settle = delay("settle", { durationMs: 30_000 });
 
 const route = branch("route", {
-    choose: (ctx) => (ctx.name === "route" ? ["us", "eu"] : "us"),
+    choose: (ctx) => (ctx.id === "route" ? ["us", "eu"] : "us"),
 });
 
 const gate = shortCircuit("gate", {
@@ -325,7 +321,7 @@ const gate = shortCircuit("gate", {
 });
 
 const start = trigger("start-child", {
-    dagName: "child",
+    dagId: "child",
     waitForCompletion: true,
 });
 ```
@@ -334,12 +330,12 @@ Use `TASK_KIND_ENUM` wherever a kind is compared or stored. It exposes `Task`, `
 
 | Factory | `kind` | Kind-specific fields | Produced by default |
 | --- | --- | --- | --- |
-| `task(name, { fn })` | `TASK_KIND_ENUM.Task` | `fn` | `unknown` |
-| `sensor(name, { predicate, pokeIntervalMs? })` | `TASK_KIND_ENUM.Sensor` | `predicate`, optional `pokeIntervalMs` | `boolean` |
-| `delay(name, { durationMs })` | `TASK_KIND_ENUM.Delay` | `durationMs` | none |
-| `branch(name, { branches?, choose })` | `TASK_KIND_ENUM.Branch` | `branches`, `choose` | the chosen branch names; declared `branches` constrain the next wiring step |
-| `shortCircuit(name, { condition })` | `TASK_KIND_ENUM.ShortCircuit` | `condition` | `boolean` |
-| `trigger(name, { dagName, waitForCompletion? })` | `TASK_KIND_ENUM.Trigger` | `dagName`, `waitForCompletion` | none |
+| `task(id, { fn })` | `TASK_KIND_ENUM.Task` | `fn` | `unknown` |
+| `sensor(id, { predicate, pokeIntervalMs? })` | `TASK_KIND_ENUM.Sensor` | `predicate`, optional `pokeIntervalMs` | `boolean` |
+| `delay(id, { durationMs })` | `TASK_KIND_ENUM.Delay` | `durationMs` | none |
+| `branch(id, { branches?, choose })` | `TASK_KIND_ENUM.Branch` | `branches`, `choose` | the chosen branch names; declared `branches` constrain the next wiring step |
+| `shortCircuit(id, { condition })` | `TASK_KIND_ENUM.ShortCircuit` | `condition` | `boolean` |
+| `trigger(id, { dagId, waitForCompletion? })` | `TASK_KIND_ENUM.Trigger` | `dagId`, `waitForCompletion` | none |
 
 All kinds accept the common metadata as well:
 
@@ -352,7 +348,7 @@ const ready = sensor("ready", {
 });
 ```
 
-Factories validate kind-specific values immediately: a sensor interval must be positive, a delay duration must be non-negative, and a trigger's target DAG name must not be blank.
+Factories validate kind-specific values immediately: a sensor interval must be positive, a delay duration must be non-negative, and a trigger's target DAG id must not be blank.
 
 ### Task inputs and outputs
 
@@ -417,14 +413,8 @@ Schemas are metadata: declaring one does not change the task ID, and schemas are
 The SDK stores and serializes these task kinds, but it does not execute, poll, wait, or prune the graph. `pokeIntervalMs` and `durationMs` are declarative fields for a scheduler. A scheduler should use `DAGTask.kind`, `DAGTask.definition`, and the kind-specific callback or fields — for example, to poll a sensor at its interval, honor a delay, run only the branches named by a branch task, skip downstream work after a false short-circuit condition, or start the DAG named by a trigger definition.
 
 ```ts
-const dag = createDAG("kinds").chain(
-    extract,
-    ready,
-    settle,
-    route,
-    gate,
-    start
-);
+const dag = createDAG("kinds")
+    .parse`${extract} >> ${ready} >> ${settle} >> ${route} >> ${gate} >> ${start}`;
 
 for (const registered of dag.topologicalSort()) {
     console.log(registered.kind);
@@ -456,7 +446,7 @@ const extract = task("extract", {
 ```ts
 const fileReady = sensor("file-ready", {
     predicate: async (ctx) => {
-        const response = await fetch(`https://example.com/status/${ctx.name}`);
+        const response = await fetch(`https://example.com/status/${ctx.id}`);
 
         return response.ok;
     },
@@ -504,8 +494,7 @@ const retryPath = branch("retry-path", {
 });
 
 await retryPath.choose({
-    id: "retry-path-id",
-    name: "retry-path",
+    id: "retry-path",
     payload: undefined,
 }); // "retry"
 ```
@@ -514,13 +503,11 @@ or several branches:
 
 ```ts
 const byRegion = branch("by-region", {
-    choose: (ctx) =>
-        ctx.name === "by-region" ? (["us", "eu"] as const) : "us",
+    choose: (ctx) => (ctx.id === "by-region" ? (["us", "eu"] as const) : "us"),
 });
 
 await byRegion.choose({
-    id: "by-region-id",
-    name: "by-region",
+    id: "by-region",
     payload: undefined,
 }); // ["us", "eu"]
 ```
@@ -530,16 +517,16 @@ Declare `branches` as well to make the names a wiring contract:
 ```ts
 const route = branch("route", {
     branches: ["us", "eu"],
-    choose: (ctx) => (ctx.name === "route" ? ["us", "eu"] : "us"),
+    choose: (ctx) => (ctx.id === "route" ? ["us", "eu"] : "us"),
 });
 
-const dag = createDAG("regions").chain(route, [
+const dag = createDAG("regions").parse`${route} >> ${[
     task("us", { fn: () => "us" }),
     task("eu", { fn: () => "eu" }),
-]);
+]}`;
 ```
 
-With `branches` declared, the wiring step that routes the branch must name exactly those branches, in one step: routing to an undeclared task, or declaring a branch that step does not route to, is rejected at compile time and at runtime. That step need not come directly after the branch task — registering the branch alone and wiring it later is fine, and the branch simply reports itself unrouted until then. A branch without `branches` stays unchecked, and only the branch's own downstream step is constrained — what those tasks require next is not.
+With `branches` declared, the wiring step that routes the branch must name exactly those branches, in one step: routing to an undeclared task, or declaring a branch that step does not route to, is rejected when the wiring call runs. That step need not come directly after the branch task — registering the branch alone and wiring it later is fine, and the branch simply reports itself unrouted until then. A branch without `branches` stays unchecked, and only the branch's own downstream step is constrained — what those tasks require next is not.
 
 A scheduler uses the returned name(s) to decide which downstream tasks to run.
 
@@ -551,8 +538,7 @@ const skipIfEmpty = shortCircuit("skip-if-empty", {
 });
 
 await skipIfEmpty.condition({
-    id: "skip-id",
-    name: "skip-if-empty",
+    id: "skip-if-empty",
     payload: undefined,
 }); // true or false
 ```
@@ -565,10 +551,10 @@ Trigger another DAG without waiting:
 
 ```ts
 const backup = trigger("backup", {
-    dagName: "backup-dag",
+    dagId: "backup-dag",
 });
 
-backup.dagName; // "backup-dag"
+backup.dagId; // "backup-dag"
 backup.waitForCompletion; // false
 ```
 
@@ -576,7 +562,7 @@ Trigger and wait for completion:
 
 ```ts
 const waitForBackup = trigger("wait-for-backup", {
-    dagName: "backup-dag",
+    dagId: "backup-dag",
     waitForCompletion: true,
 });
 
@@ -584,6 +570,30 @@ waitForBackup.waitForCompletion; // true
 ```
 
 A scheduler reads these fields, starts the target DAG, and waits when requested.
+
+##### Typing the target DAG id
+
+`dagId` accepts any non-blank string by default. Augment `DAGIdRegistry` to narrow it to the DAG ids your project declares, so a misspelled target fails to typecheck:
+
+```ts
+// dag-names.d.ts
+import type {} from "@badag/core";
+
+declare module "@badag/core" {
+    interface DAGIdRegistry {
+        // keys are DAG ids; the values are ignored
+        "backup-dag": true;
+        "restore-dag": true;
+    }
+}
+```
+
+```ts
+trigger("backup", { dagId: "backup-dag" }); // ok
+trigger("backup", { dagId: "backup_dag" }); // type error
+```
+
+The registry is type-only: `trigger()` still stores any non-blank id at runtime, the `DAGId` export widens back to `string` while the interface has no keys, and augmenting `@badag/sdk` narrows the same type.
 
 #### Inspecting a registered kind
 
@@ -600,7 +610,7 @@ if (registered?.definition.kind === TASK_KIND_ENUM.Sensor) {
 
 ```ts
 dag.getTask("extract"); // DAGTask<"extract"> | undefined
-dag.tasks; // ReadonlyMap<string, DAGTask>, keyed by name
+dag.tasks; // ReadonlyMap<string, DAGTask>, keyed by id
 ```
 
 ## Wiring dependencies
@@ -617,25 +627,25 @@ dag.addDependencies([a, b], [c, d]); // a -> c, a -> d, b -> c, b -> d
 
 Handles come from `dag.getTask()` or from `topologicalSort()`. Definitions work anywhere a handle does; edge methods register them on first use.
 
-Wiring sets link every member of one set to every member of the next. `chain()` registers definitions before linking; `crossDownstream()` takes handles only:
+Wiring sets link every member of one set to every member of the next. `parse()` registers definitions before linking and accepts wiring sets as operands; `crossDownstream()` takes handles only:
 
 ```ts
-dag.chain(a, [b, c], d); // a -> b, a -> c, b -> d, c -> d
+dag.parse`${a} >> ${[b, c]} >> ${d}`; // a -> b, a -> c, b -> d, c -> d
 crossDownstream([a, b], [c, d]); // a -> c, a -> d, b -> c, b -> d
 ```
 
-`chain()` returns the DAG, so calls compose. Each wiring set is normalized once, definitions are validated and registered before any edge is added, and already-linked edges are skipped, so repeated calls are idempotent. Every batch is all-or-nothing: if any edge is rejected, the call adds neither tasks nor edges. `crossDownstream()` is the free-function form for full bipartite linking and delegates to `addDependencies()`.
+`parse()` returns the DAG, so calls compose. Each wiring set is normalized once, definitions are validated and registered before any edge is added, and already-linked edges are skipped, so repeated calls are idempotent. Every batch is all-or-nothing: if any edge is rejected, the call adds neither tasks nor edges. `crossDownstream()` is the free-function form for full bipartite linking and delegates to `addDependencies()`.
 
-### Chaining patterns
+### Wiring patterns
 
-Pass each task or wiring set as a separate argument. Multiple plain tasks form a linear chain in one call:
+Pass each task or wiring set as a separate operand. Multiple plain tasks form a linear chain in one expression:
 
 ```ts
 const extract = task("extract", { fn: () => "raw" });
 const transform = task("transform", { fn: () => "clean" });
 const load = task("load", { fn: () => "stored" });
 
-const dag = createDAG("etl").chain(extract, transform, load);
+const dag = createDAG("etl").parse`${extract} >> ${transform} >> ${load}`;
 // extract -> transform -> load
 ```
 
@@ -649,36 +659,27 @@ const join = task("join", { fn: () => "joined" });
 const validate = task("validate", { fn: () => "valid" });
 const publish = task("publish", { fn: () => "published" });
 
-const dag = createDAG("etl").chain(
-    extract,
-    [cleanA, cleanB],
-    join,
-    validate,
-    publish
-);
+const dag = createDAG("etl")
+    .parse`${extract} >> ${[cleanA, cleanB]} >> ${join} >> ${validate} >> ${publish}`;
 // extract -> cleanA, extract -> cleanB
 // cleanA -> join, cleanB -> join
 // join -> validate -> publish
 ```
 
-A handle repeated inside one wiring set adds only one edge. An empty wiring set is a no-op, so it leaves the sets on either side disconnected:
+A handle repeated inside one wiring set adds only one edge. Empty operands are rejected: `parse` cannot express an empty wiring set, so an empty step must be omitted from the expression rather than written between two operands.
+
+Separate `parse()` calls are independent: each call adds only the edges inside that call, and no edge is added between calls.
 
 ```ts
-createDAG("etl").chain(extract, [], publish); // no extract -> publish edge
-```
-
-Separate `chain()` calls are independent: each call adds only the edges inside that call, and no edge is added between calls.
-
-```ts
-createDAG("etl").chain(a, b).chain(c, d);
+createDAG("etl").parse`${a} >> ${b}`.parse`${c} >> ${d}`;
 // a -> b and c -> d; no b -> c edge
 ```
 
-To build one continuous four-task chain, pass all tasks to a single call or share boundary tasks between calls:
+To build one continuous four-task chain, pass all tasks to a single expression or share boundary tasks between calls:
 
 ```ts
-createDAG("etl").chain(a, b, c, d);
-createDAG("etl").chain(a, b).chain(b, c).chain(c, d);
+createDAG("etl").parse`${a} >> ${b} >> ${c} >> ${d}`;
+createDAG("etl").parse`${a} >> ${b}`.parse`${b} >> ${c}`.parse`${c} >> ${d}`;
 // both: a -> b -> c -> d
 ```
 
@@ -704,7 +705,7 @@ createDAG("etl").parse`${[a, c]} >> ${b}`; // the same graph
 createDAG("etl").parse`${a} >> ${[b, c]} >> ${d}`; // fan out, then fan in
 ```
 
-An expression with one operand registers the task without wiring it, matching `dag.chain(task)`:
+An expression with one operand registers the task without wiring it:
 
 ```ts
 createDAG("etl").parse`${extract}`; // registers "extract", adds no edge
@@ -716,60 +717,52 @@ One expression per call. A newline inside the template is rejected rather than t
 createDAG("etl").parse`${extract} >> ${clean}`.parse`${clean} >> ${load}`;
 ```
 
-`parse()` accepts the same operands as every other wiring path: a handle from this DAG, or a definition that is registered on first use. It is transactional like `chain()` — a rejected task, edge, or notation is rolled back, leaving neither tasks nor edges behind. Already-linked edges are skipped, so repeating an expression is idempotent.
+`parse()` accepts the same operands as every other wiring path: a handle from this DAG, or a definition that is registered on first use. It is transactional — a rejected task, edge, or notation is rolled back, leaving neither tasks nor edges behind. Already-linked edges are skipped, so repeating an expression is idempotent.
 
 Text outside the operands is validated: a leading or trailing fragment, two adjacent operands, an empty operand list, a nested list, and an empty list are all errors. Whitespace around an operator is allowed, so `${a}>>${b}` and `${a}   >>   ${b}` are both accepted.
 
-`parse()` registers its operands in the DAG's type, exactly as `chain()` does: the returned DAG carries every parsed definition's name and signature, so a later `chain()` or `parse()` call that reuses a name with a different signature is rejected at compile time.
+`parse()` registers its operands in the DAG's type: the returned DAG carries every parsed definition's id and signature, so a later `parse()` call that reuses an id with a different signature is rejected at compile time.
 
 ```ts
 const extract = task("extract", { fn: () => "raw" });
 const dag = createDAG("etl").parse`${extract}`;
 
-dag.chain(task("extract", { fn: () => 1 })); // error: task "extract" already exists in DAG "etl"
+dag.parse`${task("extract", { fn: () => 1 })}`; // error: task "extract" already exists in DAG "etl"
 ```
 
-Edges are not part of that state. TypeScript infers the interpolated operands as tasks — a string, a number, or a nested list fails to typecheck — but it does not infer the literal `>>`/`<<` segments, so the DAG cannot see the operator sequence at compile time. Cycles, self edges, cross-DAG handles, and branch routing are therefore checked when `parse()` runs, not when the file typechecks. Use `chain()` when a compile-time cycle check matters. See [ADR 0006](../../docs/adr/0006-bitshift-notation-is-runtime-validated.md).
+Edges are not part of that state. TypeScript infers the interpolated operands as tasks — a string, a number, or a nested list fails to typecheck — but it does not infer the literal `>>`/`<<` segments, so the DAG cannot see the operator sequence at compile time. Cycles, self edges, cross-DAG handles, and branch routing are therefore checked when `parse()` runs, not when the file typechecks. See [ADR 0006](../../docs/adr/0006-bitshift-notation-is-runtime-validated.md).
 
-### Compile-time chain checks
+### Compile-time parse checks
 
-`DAG` carries the definitions and edges added by `chain()` in its type, so invalid chains fail to typecheck:
+`DAG` carries the definitions and declared branch sets added by `parse()` in its type, so duplicate definitions and branch declarations fail to typecheck:
 
 ```ts
 const a = task("a", { fn: () => "a" });
 const b = task("b", { fn: () => "b" });
-const c = task("c", { fn: () => "c" });
 
-const dag = createDAG("etl").chain(a, b, c);
-
-dag.chain(c, a); // error: dependency "c" -> "a" creates a cycle
-dag.chain(b, b); // error: task "b" cannot depend on itself
+const dag = createDAG("etl").parse`${a} >> ${b}`;
 
 const duplicate = task("a", { fn: () => 1 });
-dag.chain(duplicate); // error: task "a" already exists in DAG "etl"
+dag.parse`${duplicate}`; // error: task "a" already exists in DAG "etl"
 ```
 
-- The type-level duplicate-definition check compares task names and inferred function signatures. Re-passing the same definition is allowed because runtime registration is idempotent; a same-name definition with a different function type is rejected.
-- Adjacent wiring sets that share a task are rejected as self-edges.
-- A branch task with a declared `branches` set must be followed by a wiring set naming exactly those branches; the same rule is enforced at runtime for every edge entry point.
-- Cycles are found by walking the edges tracked in the DAG type.
-- Static checks run for `chain()` calls with up to 40 positional wiring sets. Larger calls compile but are runtime-checked only, and their definitions and edges are not added to the DAG type state.
-- The checks follow the value returned by `chain()`. If the result is discarded (`dag.chain(a, b);`), later calls are runtime-checked only. `addDependency()`, `addDependencies()`, `setUpstream()`, `setDownstream()`, and `crossDownstream()` are likewise runtime-checked.
-- Generic helpers that widen task names or DAG state to `string` skip the static checks and rely on runtime validation.
+- The type-level duplicate-definition check compares task ids and inferred function signatures. Re-passing the same definition is allowed because runtime registration is idempotent; a same-id definition with a different function type is rejected.
+- A branch task's declared set is recorded in the DAG type, so reusing the branch id with a different declared set is rejected at compile time. Whether a wiring step routes exactly to those names is a runtime check: TypeScript cannot see the operator direction.
+- Static checks run for `parse()` calls with up to 40 operands. Larger calls compile but are runtime-checked only, and their definitions and branch state are not added to the DAG type state.
+- The checks follow the value returned by `parse()`. If the result is discarded, later calls are runtime-checked only. `addDependency()`, `addDependencies()`, `setUpstream()`, `setDownstream()`, and `crossDownstream()` are likewise runtime-checked.
+- Generic helpers that widen task ids or DAG state to `string` skip the static checks and rely on runtime validation.
 - Handles from `getTask()` and `topologicalSort()` carry the erased `AnyTaskDefinition`, so they add edges but no signatures; type-level duplicate detection compares regular `fn` signatures, while runtime remains authoritative for handle-only wiring.
-- Regular definitions with the same name and inferred `fn` type but different `fn` source cannot be distinguished statically; non-regular definitions are opaque to type-level signature checks. Runtime still rejects collisions.
+- Regular definitions with the same id and inferred `fn` type but different `fn` behavior cannot be distinguished statically; non-regular definitions are opaque to type-level signature checks. Runtime still rejects conflicts.
+- Edges are never statically checked: `parse()` cannot read the operators, so cycles and self edges are runtime findings.
 
 ### Validating a graph
 
-`validate()` returns every problem in the graph as a list, without throwing. The wiring methods reject malformed graphs as they run, so a DAG built only through them validates clean; the method is for graphs that reach a checkpoint later — a snapshot, a graph restored from storage, a half-built DAG before execution — and for the states wiring cannot see at the time of a call.
+`validate()` returns every problem in the graph as a list, without throwing. The DAG id is stored verbatim, so an id outside Airflow's convention surfaces here; the wiring methods reject malformed graphs as they run. The method is also for graphs that reach a checkpoint later — a snapshot, a graph restored from storage, a half-built DAG before execution — and for the states wiring cannot see at the time of a call.
 
 ```ts
 const route = branch("route", { branches: ["us", "eu"], choose: () => "us" });
 
-const dag = createDAG("daily").chain(
-    route,
-    task("extract", { fn: () => "raw" })
-);
+const dag = createDAG("daily").parse`${route}`;
 
 dag.validate();
 // [
@@ -780,10 +773,12 @@ dag.validate();
 
 A branch task declares the branches a scheduler may follow, so registering one alone leaves it temporarily unrouted; pairing it with the tasks that carry those names clears the finding. Checking `validate()` before execution catches exactly that.
 
-Every finding has a `code`, the `subjects` involved, and a `message` in the same wording the wiring methods throw. `subjects` names both endpoints for an edge, the traversal path (closing task repeated) for a cycle, and `[branch, declaredName]` for a branch finding. Branch and trigger findings name a declared branch or a DAG, not a task, so the field is called `subjects` rather than `tasks`. Findings are ordered edges, cycles, branch routing, then trigger findings.
+Every finding has a `code`, the `subjects` involved, and a `message` describing the problem. `subjects` holds the offending value for an invalid DAG id or task id, both endpoints for an edge, the traversal path (closing task repeated) for a cycle, and `[branch, declaredName]` for a branch or trigger finding. Branch and trigger findings name a declared branch or a DAG, not a task, so the field is called `subjects` rather than `tasks`. Findings are ordered identifiers, edges, cycles, branch routing, then trigger findings.
 
 | Code | Meaning |
 | --- | --- |
+| `invalid-dag-id` | The DAG's id does not follow Airflow's `dag_id` convention |
+| `invalid-task-id` | A registered task's id does not follow Airflow's `task_id` convention |
 | `cycle` | An edge joins a task back to one of its own ancestors |
 | `self-edge` | A task lists itself as an upstream or downstream task |
 | `foreign-edge` | An edge endpoint is not registered in this DAG |
@@ -791,22 +786,25 @@ Every finding has a `code`, the `subjects` involved, and a `message` in the same
 | `unrouted-branch` | A branch task declares a branch name it never routes to |
 | `undeclared-branch-target` | A branch task routes to a task it never declared |
 | `duplicate-declared-branch` | A branch task declares the same branch name more than once |
-| `invalid-declared-branch` | A branch task declares a name that cannot be a task name |
+| `invalid-declared-branch` | A branch task declares a name that cannot be a task id |
 | `self-trigger` | A trigger task starts the DAG that contains it |
 
 `duplicate-declared-branch` and `invalid-declared-branch` are reachable through the factories: `branches: ["us", "us"]` and a declared name like `""` or `"united states"` are both accepted by `branch()`, and neither can be satisfied by wiring. A name that is invalid is reported as `invalid-declared-branch` rather than additionally as `unrouted-branch`, because no task could ever carry it.
 
-An empty array means the graph is acyclic, internally consistent, and every branch routes exactly to its declared branches.
+`invalid-dag-id` is reachable through the public API, because `createDAG()` and `new DAG()` store the id verbatim; `validate()` is where the convention is checked. `invalid-task-id` is not reachable that way, because registration rejects an invalid task id first; it exists for graphs restored or assembled outside the public methods.
+
+An empty array means the DAG id and every task id follow Airflow's `validate_key` convention, the graph is acyclic, internally consistent, and every branch routes exactly to its declared branches.
 
 Reporting rules, each pinned by a test:
 
 - A self edge yields `self-edge` only, never an additional `cycle`, whether it is recorded on one side or both.
+- An identifier finding is one violation for the offending value, reported before every structural finding.
 - Each distinct cycle yields one finding, named by the path that closes it with the first task repeated. Cycles that share a task are separate findings.
 - An edge yields at most one finding: the downstream side and the upstream side report disjoint conditions on the same edge.
-- A mutual cross-DAG edge yields one finding per direction, so the two `tasks` lists differ.
+- A mutual cross-DAG edge yields one finding per direction, so the two `subjects` lists differ.
 - Foreign targets are reported but not traversed; their own edges belong to the DAG that owns them, so one graph's report never includes another's cycles.
 - A branch finding is per branch name, so a repeated declared name yields one finding, and an invalid declared name is reported once as `invalid-declared-branch`.
-- A trigger comparison trims both names, so `dagName: " daily "` inside DAG `"daily"` is still a self-trigger. Names that differ by case are distinct DAGs.
+- A trigger comparison trims both ids, so `dagId: " daily "` inside DAG `"daily"` is still a self-trigger. Ids that differ by case are distinct DAGs.
 - `validate()` only reads the graph, so calling it never changes state.
 
 Edge methods accept either a `DAGTask` handle or a definition; an unseen definition is registered in this DAG, then resolved by task ID. `addDependencies()` links every upstream task to every downstream task. `crossDownstream()` is the exception and takes handles only.
@@ -827,7 +825,7 @@ The SDK only describes the graph; your scheduler decides how tasks execute. Beca
 import { TASK_KIND_ENUM, type DAGTask } from "@badag/core";
 
 async function runTask(task: DAGTask): Promise<void> {
-    const ctx = { id: task.id, name: task.name, payload: undefined };
+    const ctx = { id: task.id, payload: undefined };
     const { definition } = task;
 
     switch (definition.kind) {
@@ -836,7 +834,7 @@ async function runTask(task: DAGTask): Promise<void> {
             return;
         case TASK_KIND_ENUM.Sensor:
             if (!(await definition.predicate(ctx))) {
-                throw new Error(`Sensor "${task.name}" is not ready`);
+                throw new Error(`Sensor "${task.id}" is not ready`);
             }
             return;
         case TASK_KIND_ENUM.Delay:
@@ -850,7 +848,7 @@ async function runTask(task: DAGTask): Promise<void> {
             await definition.condition(ctx); // prune downstream work
             return;
         case TASK_KIND_ENUM.Trigger:
-            // start definition.dagName; wait when definition.waitForCompletion
+            // start definition.dagId; wait when definition.waitForCompletion
             return;
     }
 }
@@ -868,7 +866,7 @@ Readiness is runtime-owned. The SDK stores `triggerRule` but does not evaluate i
 
 ## Serialization
 
-`dag.toJSON()` returns a `DAGJson` snapshot: the DAG name, every task in registration order, and each task's edges as **task names**. Each entry is a `TaskJson`.
+`dag.toJSON()` returns a `DAGJson` snapshot: the `dagId`, the DAG's optional `description`, every task in registration order, and each task's edges as **task ids**. Each entry is a `TaskJson`.
 
 ```ts
 import { createDAG, task } from "@badag/core";
@@ -876,44 +874,87 @@ import { createDAG, task } from "@badag/core";
 const extract = task("extract", {
     fn: () => "raw",
     description: "Read source data",
+    config: { timeout_ms: 30_000 },
 });
 const load = task("load", { fn: () => "stored" });
 
-const dag = createDAG("etl").chain(extract, load);
+const dag = createDAG("etl", { description: "Nightly ETL" })
+    .parse`${extract} >> ${load}`;
 
-dag.toJSON();
-// {
-//     name: "etl",
-//     tasks: [
-//         {
-//             id: "…",
-//             name: "extract",
-//             kind: "task",
-//             triggerRule: "all_success",
-//             description: "Read source data",
-//             upstream: [],
-//             downstream: ["load"],
-//         },
-//         {
-//             id: "…",
-//             name: "load",
-//             kind: "task",
-//             triggerRule: "all_success",
-//             upstream: ["extract"],
-//             downstream: [],
-//         },
-//     ],
-// }
+const json = dag.toJSON();
 ```
 
-- `id` is the registered task's task ID; `name` is unique within the DAG.
+The resulting JSON structure:
+
+```json
+{
+    "dagId": "etl",
+    "description": "Nightly ETL",
+    "tasks": [
+        {
+            "id": "extract",
+            "kind": "task",
+            "triggerRule": "all_success",
+            "description": "Read source data",
+            "config": { "timeout_ms": 30000 },
+            "upstream": [],
+            "downstream": ["load"]
+        },
+        {
+            "id": "load",
+            "kind": "task",
+            "triggerRule": "all_success",
+            "upstream": ["extract"],
+            "downstream": []
+        }
+    ]
+}
+```
+
+- `dagId` is the Airflow-style DAG id supplied to `createDAG()`.
+- `description` is the DAG's optional description, included when supplied to `createDAG()` or `new DAG()`.
+- `id` is the task's declared id and is unique within the DAG.
 - `kind` is always included and identifies the task factory that created the definition.
 - `triggerRule` is always included and defaults to `all_success`.
-- Kind-specific serializable fields are included: sensor `pokeIntervalMs`, delay `durationMs`, and trigger `dagName` and `waitForCompletion`. Branch choosers, short-circuit conditions, and sensor predicates are functions and are omitted.
-- `upstream` and `downstream` list task names, in the order the edges were inserted.
+- Kind-specific serializable fields are included: sensor `pokeIntervalMs`, delay `durationMs`, and trigger `dagId` and `waitForCompletion`. Branch choosers, short-circuit conditions, and sensor predicates are functions and are omitted.
+- `upstream` and `downstream` list task ids, in the order the edges were inserted.
 - `description` is included when the task has one.
 - `config` is included when the task has one.
-- Behavior callbacks (`fn`, `predicate`, `choose`, `condition`) are omitted, so the snapshot is an inspection format, not a round-trip format. Rebuild a runnable DAG with a task factory and `chain()`.
+- Behavior callbacks (`fn`, `predicate`, `choose`, `condition`) are omitted, so the snapshot is an inspection format, not a round-trip format. Rebuild a runnable DAG with a task factory and `parse()`.
+
+Kind-specific fields sit on the same task object. An excerpt of the pricing DAG from the quick start:
+
+```json
+[
+    {
+        "id": "source-ready",
+        "kind": "sensor",
+        "triggerRule": "all_success",
+        "pokeIntervalMs": 60000,
+        "upstream": [],
+        "downstream": ["extract"]
+    },
+    {
+        "id": "settle",
+        "kind": "delay",
+        "triggerRule": "all_success",
+        "durationMs": 300000,
+        "upstream": ["us", "eu"],
+        "downstream": ["gate"]
+    },
+    {
+        "id": "start-child",
+        "kind": "trigger",
+        "triggerRule": "all_success",
+        "dagId": "publish",
+        "waitForCompletion": true,
+        "upstream": ["report"],
+        "downstream": []
+    }
+]
+```
+
+Branch and short-circuit tasks add no kind-specific fields, so their entries match the regular task shape above.
 
 `JSON.stringify(dag)` calls `toJSON()` automatically:
 
@@ -921,25 +962,34 @@ dag.toJSON();
 const encoded = JSON.stringify(dag); // same shape as dag.toJSON()
 ```
 
-Grouped chains serialize with edges listed by name in both directions:
+A registered task handle produces the same snapshot on its own: `task.toJSON()` returns exactly that task's entry in `DAG.toJSON().tasks`, so per-task snapshots cannot drift from the DAG snapshot.
 
 ```ts
-const grouped = createDAG("etl").chain(
-    task("extract", { fn: () => "raw" }),
-    [task("cleanA", { fn: () => "a" }), task("cleanB", { fn: () => "b" })],
-    task("join", { fn: () => "joined" })
-);
+const loadTask = dag.getTask("load");
 
-grouped.toJSON().tasks.map(({ name, upstream, downstream }) => ({
-    name,
+loadTask?.toJSON(); // the "load" entry from dag.toJSON().tasks
+JSON.stringify(loadTask); // that entry alone, functions omitted
+```
+
+Grouped wiring serializes with edges listed by id in both directions:
+
+```ts
+const grouped = createDAG("etl")
+    .parse`${task("extract", { fn: () => "raw" })} >> ${[
+    task("cleanA", { fn: () => "a" }),
+    task("cleanB", { fn: () => "b" }),
+]} >> ${task("join", { fn: () => "joined" })}`;
+
+grouped.toJSON().tasks.map(({ id, upstream, downstream }) => ({
+    id,
     upstream,
     downstream,
 }));
 // [
-//     { name: "extract", upstream: [], downstream: ["cleanA", "cleanB"] },
-//     { name: "cleanA", upstream: ["extract"], downstream: ["join"] },
-//     { name: "cleanB", upstream: ["extract"], downstream: ["join"] },
-//     { name: "join", upstream: ["cleanA", "cleanB"], downstream: [] },
+//     { id: "extract", upstream: [], downstream: ["cleanA", "cleanB"] },
+//     { id: "cleanA", upstream: ["extract"], downstream: ["join"] },
+//     { id: "cleanB", upstream: ["extract"], downstream: ["join"] },
+//     { id: "join", upstream: ["cleanA", "cleanB"], downstream: [] },
 // ]
 ```
 
@@ -949,32 +999,32 @@ grouped.toJSON().tasks.map(({ name, upstream, downstream }) => ({
 
 | Export | Kind | Summary |
 | --- | --- | --- |
-| `createDAG` | function | `createDAG(name)` returns a `DAG`; keeps the literal name type, so `chain()` checks apply |
-| `DAG` | class | `name`, `tasks`, `getTask()`, `addDependency()`, `addDependencies()`, `chain()`, `parse`, `validate()`, `topologicalSort()`, `toJSON()` |
-| `DAGTask` | type | Registered task handle; `id`, `name`, `kind`, `definition`, `description`, `config`, `triggerRule`, `upstream`, `downstream`, `setUpstream()`, `setDownstream()`, `dependsOn()`. Minted by `DAG`, not constructible by consumers |
-| `task` | function | Creates a regular task definition from a name and `{ fn }` input |
+| `createDAG` | function | `createDAG(dagId, metadata?)` returns a `DAG`; keeps the literal DAG id type, so `parse()` checks apply |
+| `DAG` | class | `dagId`, `metadata`, `tasks`, `getTask()`, `addDependency()`, `addDependencies()`, `parse`, `validate()`, `topologicalSort()`, `toJSON()` |
+| `DAGTask` | type | Registered task handle; `id`, `kind`, `definition`, `description`, `config`, `triggerRule`, `upstream`, `downstream`, `setUpstream()`, `setDownstream()`, `dependsOn()`, `toJSON()`. Minted by `DAG`, not constructible by consumers |
+| `task` | function | Creates a regular task definition from an id and `{ fn }` input |
 | `sensor` | function | Creates a sensor definition storing a predicate and optional `pokeIntervalMs`; the SDK does not poll |
 | `delay` | function | Creates a delay definition storing `durationMs`; the SDK does not wait |
 | `branch` | function | Creates a branch definition whose `choose` callback returns a branch name or names |
 | `shortCircuit` | function | Creates a short-circuit definition whose `condition` controls downstream execution |
-| `trigger` | function | Creates a trigger definition targeting `dagName` and records whether to wait for completion |
+| `trigger` | function | Creates a trigger definition targeting `dagId` and records whether to wait for completion |
 | `crossDownstream` | function | Links every task of one list to every task of another |
-| `TaskFn` | type | `(ctx: TaskContext<Name>) => unknown` — regular task callback signature |
-| `TaskContext` | interface | `{ readonly id, readonly name }` passed as the first callback argument; `id` is the registered task ID |
+| `TaskFn` | type | `(ctx: TaskContext<Id>) => unknown` — regular task callback signature |
+| `TaskContext` | interface | `{ readonly id, readonly payload }` passed as the first callback argument |
 | `TaskConfig` | interface | `timeout_ms` plus arbitrary keys, stored untouched |
 | `TaskKind` | type | `TASK_KIND_ENUM` value union: `"task" \| "sensor" \| "delay" \| "branch" \| "short_circuit" \| "trigger"` |
 | `TASK_KIND_ENUM` | object | Enum-like map of the supported task kinds |
 | `TaskMetadata` | interface | `{ description?, config?, triggerRule? }` accepted by every factory |
-| `TaskParamInput` | interface | `{ fn, description?, config?, triggerRule? }` — input to `task()` after the name |
+| `TaskParamInput` | interface | `{ fn, description?, config?, triggerRule? }` — input to `task()` after the id |
 | `TaskParamOutput` | type | A regular task definition: `TaskDefinitionBase` with `TASK_KIND_ENUM.Task` |
-| `TaskDefinitionBase` | interface | Common definition fields: `kind`, `name`, and optional metadata |
+| `TaskDefinitionBase` | interface | Common definition fields: `kind`, `id`, and optional metadata |
 | `SensorTaskDefinition` | interface | Sensor definition with `predicate` and optional `pokeIntervalMs` |
 | `DelayTaskDefinition` | interface | Delay definition with `durationMs` |
 | `BranchTaskDefinition` | interface | Branch definition with `choose` |
 | `ShortCircuitTaskDefinition` | interface | Short-circuit definition with `condition` |
-| `TriggerTaskDefinition` | interface | Trigger definition with `dagName` and `waitForCompletion` |
+| `TriggerTaskDefinition` | interface | Trigger definition with `dagId` and `waitForCompletion` |
 | `AnyTaskDefinition` | type | Union of every definition accepted by `DAG` |
-| `RegisteredTaskDefinition` | type | The definition exposed by a registered `DAGTask`, with callbacks accepting the generic task name |
+| `RegisteredTaskDefinition` | type | The definition exposed by a registered `DAGTask`, with callbacks accepting the generic task id |
 | `TriggerRule` | type | `all_success`, `all_done`, `one_success`, `one_failed`, `none_failed`, `none_failed_min_one_success`, `all_skipped` |
 | `TRIGGER_RULE_ENUM` | object | Enum-like map of the supported trigger rules |
 | `TaskLike` | type | A `DAGTask` or a task definition returned by a factory |
@@ -984,45 +1034,47 @@ grouped.toJSON().tasks.map(({ name, upstream, downstream }) => ({
 | `DAGViolationCode` | type | Value union of `DAG_VIOLATION_ENUM` |
 | `DAG_VIOLATION_ENUM` | object | Enum-like map of the `validate()` finding codes |
 | `TaskJson` | type | Discriminated union of serialized task kinds; includes `kind` and kind-specific serializable fields |
-| `DAGJson` | interface | `{ name, tasks }` returned by `toJSON()` |
-| `CreateTask` | type | Call signature of `task(name, input)` |
+| `DAGJson` | interface | `{ dagId, description?, tasks }` returned by `toJSON()` |
+| `DAGMetadata` | interface | `{ description? }` accepted as the second argument to `createDAG()` and `new DAG()` |
+| `CreateTask` | type | Call signature of `task(id, input)` |
 | `TaskSchema` | type | Standard Schema accepted by `input`/`output` |
 | `TaskPayloadOf<S>` | type | Value `ctx.payload` carries for schema `S` |
 | `TaskProducedOf<S>` | type | Value a task produces for schema `S` |
 
 ## Types
 
-- Task callbacks receive `{ id, name }` first; `id` is assigned when the definition is registered, and factories trim surrounding whitespace and infer `ctx.name` as the resulting literal name.
-- Task names contain letters or numbers, with words joined by a single `-` or `_`; internal spaces, other punctuation, leading/trailing separators, and repeated separators are rejected.
+- Task callbacks receive `{ id }` first; the id is declared on the definition, and factories trim surrounding whitespace and infer `ctx.id` as the resulting literal id.
+- Task ids follow Airflow's `task_id` convention: letters, numbers, `_`, `.`, and `-`, at most 250 characters. Factories trim surrounding whitespace first; internal whitespace and other punctuation are rejected.
 - Every factory keeps the relevant callback signature on the definition, including its context parameter and return type; zero-argument callbacks remain assignable when the context is unused.
 - Factories add `triggerRule: "all_success"` when the input omits it; registered tasks expose the normalized value.
 - `description`, `config`, and `triggerRule` are accepted by every factory and stored on the definition and registered task.
-- `TaskFn` is the regular task callback, `(ctx: TaskContext<Name>) => unknown`; `PromiseLike` results are allowed and are not awaited by the SDK. Sensor, branch, and short-circuit callbacks use `MaybePromise` results.
+- `TaskFn` is the regular task callback, `(ctx: TaskContext<Id>) => unknown`; `PromiseLike` results are allowed and are not awaited by the SDK. Sensor, branch, and short-circuit callbacks use `MaybePromise` results.
 - Sensor, branch, and short-circuit callbacks receive the task context. A scheduler calls a sensor's `predicate` and repeats it according to `pokeIntervalMs`; a branch's `choose` returns the branch name(s); a short-circuit's `condition` returns the gate result.
 - `DAGTask` is exported as a type only; obtain handles from `DAG` methods rather than constructing them.
-- `createDAG(name)` returns a `DAG<Name>` instance with the literal name preserved, so `chain()` checks apply exactly as they do for a directly constructed `DAG`; the constructor stays public.
+- `createDAG(dagId, metadata?)` returns a `DAG<DagId>` instance with the literal DAG id preserved, so `parse()` checks apply exactly as they do for a directly constructed `DAG`; the constructor stays public. DAG ids follow Airflow's `dag_id` convention: letters, numbers, `_`, `.`, and `-`, at most 250 characters, with no whitespace; ids are never trimmed and are reported by `validate()` rather than rejected at construction.
+- `DAGMetadata` is the optional second argument to `createDAG()` and `new DAG()`; currently it carries only `description`. The value is exposed as `dag.metadata` and `toJSON()` serializes the description when present.
 - `DAGTask.kind` identifies the factory, and `DAGTask.definition` retains the original kind-specific definition, including callbacks that are not serialized.
-- `getTask()`, `topologicalSort()`, and `task.upstream` expose `DAGTask`. Narrow `task.definition.kind` to access the kind-specific behavior field and pass `{ id: task.id, name: task.name }` when invoking it.
-- `DAG` carries internal type parameters for the definitions and edges added through `chain()`. Annotating a value as plain `DAG` intentionally opts out of the compile-time checks above.
-- `parse` types each operand as a task or a flat list of tasks, so a string, a number, or a nested list fails to typecheck. It adds those definitions to the DAG's type state as signatures and declared branch sets, like `chain`, so duplicate definitions are caught at compile time; it adds no edges, because TypeScript cannot infer the literal `>>`/`<<` segments. Use `chain()` when compile-time cycle detection matters.
-- `toJSON()` returns a fresh `DAGJson` snapshot with `kind`, kind-specific serializable fields, and edges keyed by task name; functions are removed.
+- `getTask()`, `topologicalSort()`, and `task.upstream` expose `DAGTask`. Narrow `task.definition.kind` to access the kind-specific behavior field and pass `{ id: task.id, payload: undefined }` when invoking it.
+- `DAG` carries internal type parameters for the definitions and declared branch sets added through `parse()`. Annotating a value as plain `DAG` intentionally opts out of the compile-time checks above.
+- `parse` types each operand as a task or a flat list of tasks, so a string, a number, or a nested list fails to typecheck. It adds those definitions to the DAG's type state as signatures and declared branch sets, so duplicate definitions and conflicting branch declarations are caught at compile time; it adds no edges, because TypeScript cannot infer the literal `>>`/`<<` segments. Cycles and self edges are always runtime checks.
+- `toJSON()` returns a fresh `DAGJson` snapshot with `kind`, kind-specific serializable fields, and edges keyed by task id; functions are removed.
+- `DAGTask.toJSON()` returns the same one-task `TaskJson` snapshot that task contributes to `DAG.toJSON().tasks`, and `JSON.stringify(task)` calls it.
 - `validate()` returns a readonly `DAGViolation[]` and never throws; the codes are a closed set, so a scheduler can switch on `code` exhaustively.
 
 ## Errors
 
 | Message | Raised by |
 | --- | --- |
-| `DAG name cannot be empty` | `createDAG(name)` |
-| `Task name cannot be empty` | Any task factory after trimming |
-| `Task name "<name>" must use letters or numbers separated by "-" or "_"` | Any task factory and DAG registration |
-| `Task "<name>" already exists in DAG "<dag>"` | `chain()` and edge methods when registering a definition |
-| `Task ID "<id>" already exists` | `chain()` and edge methods when task IDs collide |
+| `Task ID cannot be empty` | Any task factory, and DAG registration for an empty id |
+| `Task ID "<id>" must use letters, numbers, ".", "-", or "_"` | Any task factory and DAG registration |
+| `Task ID "<id>" must be at most 250 characters` | Any task factory and DAG registration |
+| `Task "<id>" already exists in DAG "<dag>" with different behavior; reuse the same definition or choose a different task id` | `parse()` and edge methods when an id is reused with different behavior |
 | `pokeIntervalMs must be greater than 0` | `sensor()` |
 | `durationMs must be greater than or equal to 0` | `delay()` |
-| `Trigger DAG name cannot be empty` | `trigger()` |
+| `Trigger DAG id cannot be empty` | `trigger()` |
 | `Both tasks must belong to this DAG` | `addDependency()`, `addDependencies()`, and the wiring methods |
 | `A task cannot depend on itself` | `addDependency()`, `addDependencies()`, and the wiring methods |
-| `Branch "<branch>" cannot route to "<task>"; declared branches are "<name>", ...` | `chain()` and the edge methods when a declared branch set does not contain the task |
+| `Branch "<branch>" cannot route to "<task>"; declared branches are "<name>", ...` | `parse()` and the edge methods when a declared branch set does not contain the task |
 | `Branch "<branch>" cannot route to "<task>"; it declares no branches` | Same, for a branch declaring an empty `branches` set |
 | `Branch "<branch>" must route to declared branch "<name>"` | Same, when a declared branch is left unrouted by that wiring step |
 | `Dependency "<from>" -> "<to>" creates a cycle` | `addDependency()`, `addDependencies()`, and the wiring methods |
@@ -1034,7 +1086,7 @@ grouped.toJSON().tasks.map(({ name, upstream, downstream }) => ({
 | `Wiring expression in DAG "<dag>" cannot nest task lists` | `parse` for an array inside an operand array |
 | `Wiring expression in DAG "<dag>" cannot use an empty task list` | `parse` for `[]` as an operand |
 | `Wiring expression in DAG "<dag>" expects tasks; received <type>` | `parse` for an operand that is not a task or definition |
-| `DAG "<name>" contains a cycle` | `topologicalSort()` — defensive, unreachable via the public API |
+| `DAG "<dag>" contains a cycle` | `topologicalSort()` — defensive, unreachable via the public API |
 
 ## License
 

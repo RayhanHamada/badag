@@ -4,11 +4,11 @@ import type {
     TaskDefinitionBase,
     TaskMetadata,
     TaskSchemas,
-    TrimTaskName,
+    TrimTaskId,
 } from "./base";
 
 /**
- * Input to the delay factory after the name.
+ * Input to the delay factory after the id.
  */
 export interface DelayTaskInput<
     Input extends AnySchema = undefined,
@@ -27,10 +27,10 @@ export interface DelayTaskInput<
  * A delay declares no schemas by default; it produces no value of its own.
  */
 export interface DelayTaskDefinition<
-    Name extends string = string,
+    Id extends string = string,
     Input extends AnySchema = undefined,
     Output extends AnySchema = undefined,
-> extends TaskDefinitionBase<Name, typeof TASK_KIND_ENUM.Delay, Input, Output> {
+> extends TaskDefinitionBase<Id, typeof TASK_KIND_ENUM.Delay, Input, Output> {
     /**
      * Delay duration in milliseconds.
      */
@@ -41,10 +41,10 @@ export interface DelayTaskDefinition<
  * Call signature of `delay()`.
  */
 export type CreateDelay = <
-    const Name extends string,
+    const Id extends string,
     Input extends AnySchema = undefined,
     Output extends AnySchema = undefined,
 >(
-    name: Name,
+    id: Id,
     input: DelayTaskInput<Input, Output>
-) => DelayTaskDefinition<TrimTaskName<Name>, Input, Output>;
+) => DelayTaskDefinition<TrimTaskId<Id>, Input, Output>;

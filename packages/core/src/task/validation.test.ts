@@ -95,8 +95,7 @@ describe("cross-library input schema validation", () => {
             expect(value).toStrictEqual(validWarehouse);
             expect(
                 definition.fn({
-                    id: "sync-id",
-                    name: "sync",
+                    id: "sync",
                     payload: validWarehouse,
                 })
             ).toBe(42);
@@ -253,8 +252,7 @@ describe("schema transforms", () => {
         }>();
         expect(
             definition.fn({
-                id: "coerce-id",
-                name: "coerce",
+                id: "coerce",
                 payload: { rows: 21 },
             })
         ).toBe(42);
@@ -337,8 +335,7 @@ describe("schemas on every task kind", () => {
         ).toBeGreaterThan(0);
         expect(
             definition.predicate({
-                id: "ready-id",
-                name: "ready",
+                id: "ready",
                 payload: { rows: 1 },
             })
         ).toBeTruthy();
@@ -384,7 +381,7 @@ describe("schemas on every task kind", () => {
 
     it("validates a trigger output schema", async () => {
         const definition = trigger("start", {
-            dagName: "child",
+            dagId: "child",
             output: type("boolean"),
         });
 

@@ -6,6 +6,7 @@ import type { DAGTask } from "../registered-task";
 import { findBranchViolations } from "./branches";
 import { findCycleViolations } from "./cycles";
 import { findEdgeViolations } from "./edges";
+import { findIdentifierViolations } from "./identifiers";
 import { findTriggerViolations } from "./triggers";
 import type { DAGViolation } from "./violation";
 
@@ -13,18 +14,20 @@ import type { DAGViolation } from "./violation";
  * Return every violation in a graph, in registration order.
  *
  * Pure: the graph is only read, so calling this is always safe and never
- * throws. Edges are reported before cycles and branch findings.
+ * throws. Identifier findings come first, then edges, cycles, branch routing,
+ * and trigger findings.
  */
 export function findViolations(
-    dagName: string,
+    dagId: string,
     tasks: readonly DAGTask[]
 ): readonly DAGViolation[] {
     const registered = new Set(tasks);
 
     return [
-        ...findEdgeViolations(dagName, tasks, registered),
-        ...findCycleViolations(dagName, tasks, registered),
+        ...findIdentifierViolations(dagId, tasks),
+        ...findEdgeViolations(dagId, tasks, registered),
+        ...findCycleViolations(dagId, tasks, registered),
         ...findBranchViolations(tasks, registered),
-        ...findTriggerViolations(dagName, tasks),
+        ...findTriggerViolations(dagId, tasks),
     ];
 }

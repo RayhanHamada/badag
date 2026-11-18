@@ -1,5 +1,5 @@
 import { declaredBranches } from "./declared-branches";
-import { quoteNames } from "./format";
+import { quoteValues } from "./format";
 import type { DAGTask } from "./registered-task";
 
 /**
@@ -34,23 +34,23 @@ export function assertBranchWiring(
         }
 
         for (const target of added) {
-            if (declared.includes(target.name)) {
+            if (declared.includes(target.id)) {
                 continue;
             }
 
             throw new Error(
                 declared.length === 0
-                    ? `Branch "${source.name}" cannot route to "${target.name}"; it declares no branches`
-                    : `Branch "${source.name}" cannot route to "${target.name}"; declared branches are ${quoteNames(declared)}`
+                    ? `Branch "${source.id}" cannot route to "${target.id}"; it declares no branches`
+                    : `Branch "${source.id}" cannot route to "${target.id}"; declared branches are ${quoteValues(declared)}`
             );
         }
 
         const wired = routed.get(source) ?? source.downstream;
 
         for (const name of declared) {
-            if (![...wired].some((task) => task.name === name)) {
+            if (![...wired].some((task) => task.id === name)) {
                 throw new Error(
-                    `Branch "${source.name}" must route to declared branch "${name}"`
+                    `Branch "${source.id}" must route to declared branch "${name}"`
                 );
             }
         }

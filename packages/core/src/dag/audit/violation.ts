@@ -7,6 +7,10 @@
  * Machine-readable category for one `DAG.validate()` finding.
  */
 export const DAG_VIOLATION_ENUM = {
+    /** The DAG's id does not follow Airflow's `dag_id` convention. */
+    InvalidDagId: "invalid-dag-id",
+    /** A registered task's id does not follow Airflow's `task_id` convention. */
+    InvalidTaskId: "invalid-task-id",
     /** An edge joins a task back to one of its own ancestors. */
     Cycle: "cycle",
     /** A task lists itself as an upstream or downstream task. */
@@ -21,7 +25,7 @@ export const DAG_VIOLATION_ENUM = {
     UndeclaredBranchTarget: "undeclared-branch-target",
     /** A branch task declares the same branch name more than once. */
     DuplicateDeclaredBranch: "duplicate-declared-branch",
-    /** A branch task declares a name that can never be a task name. */
+    /** A branch task declares a name that can never be a task id. */
     InvalidDeclaredBranch: "invalid-declared-branch",
     /** A trigger task starts the DAG that contains it. */
     SelfTrigger: "self-trigger",
@@ -36,11 +40,12 @@ export type DAGViolationCode =
 /**
  * One problem found in a DAG.
  *
- * `subjects` holds the names the finding involves, in the order the message
- * names them. Every entry is a task name except in the branch and trigger
- * findings, where the second entry is a declared branch name or a DAG name:
+ * `subjects` holds the values the finding involves, in the order the message
+ * names them. Every entry is a task id except in the branch and trigger
+ * findings, where the second entry is a declared branch name or a DAG id:
  * both endpoints for an edge, the traversal path (closing task repeated) for a
- * cycle, and `[task, declaredName]` for a branch or trigger finding.
+ * cycle, `[task, declaredName]` for a branch or trigger finding, and the
+ * offending value alone for an invalid DAG id or task id.
  */
 export interface DAGViolation {
     readonly code: DAGViolationCode;

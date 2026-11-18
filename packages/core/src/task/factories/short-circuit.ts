@@ -1,8 +1,8 @@
 import { taskMetadata } from "../definition/metadata";
 import { taskSchemas } from "../definition/schemas";
-import { normalizeTaskName } from "../definition/task-name";
+import { normalizeTaskId } from "../definition/task-id";
 import { TASK_KIND_ENUM } from "../kind";
-import type { AnySchema, SchemaOf, TrimTaskName } from "../types/base";
+import type { AnySchema, SchemaOf, TrimTaskId } from "../types/base";
 import type {
     ShortCircuitTaskDefinition,
     ShortCircuitTaskInput,
@@ -16,22 +16,22 @@ import type {
  * downstream tasks should run; the SDK itself does not prune edges.
  */
 export function shortCircuit<
-    const Name extends string,
+    const Id extends string,
     Input extends AnySchema = undefined,
     Output extends AnySchema = SchemaOf<boolean>,
 >(
-    name: Name,
-    input: ShortCircuitTaskInput<TrimTaskName<Name>, Input, Output>
-): ShortCircuitTaskDefinition<TrimTaskName<Name>, Input, Output> {
-    const normalized = normalizeTaskName(name);
+    id: Id,
+    input: ShortCircuitTaskInput<TrimTaskId<Id>, Input, Output>
+): ShortCircuitTaskDefinition<TrimTaskId<Id>, Input, Output> {
+    const normalized = normalizeTaskId(id);
 
     const definition = {
         kind: TASK_KIND_ENUM.ShortCircuit,
-        name: normalized,
+        id: normalized,
         condition: input.condition,
         ...taskMetadata(input),
         ...taskSchemas(input),
-    } satisfies ShortCircuitTaskDefinition<TrimTaskName<Name>, Input, Output>;
+    } satisfies ShortCircuitTaskDefinition<TrimTaskId<Id>, Input, Output>;
 
     return definition;
 }

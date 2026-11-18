@@ -1,6 +1,7 @@
+/// <reference types="@tanstack/react-start" />
 import { createFileRoute } from "@tanstack/react-router";
 
-import { handlePublicApiRequest } from "@/integrations/hono/app";
+import { handlePublicApiRequest } from "@/integrations/orpc/app";
 
 // The public API owns everything under `/api/v1`, including the Scalar
 // documentation at `/api/v1/docs`.

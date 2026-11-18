@@ -16,14 +16,10 @@ export default defineConfig(({ mode }) => {
         worker: {
             entrypoint,
             name: APP_NAME,
-            compatibilityDate: "2025-09-02",
+            compatibilityDate: "2026-11-15",
             compatibilityFlags: ["nodejs_compat"],
 
             env: {
-                // Secrets are read locally from `.env` (see `.env.example`) and must
-                // be set with `cf secret put <NAME>` before deploying.
-                BETTER_AUTH_SECRET: bindings.secret(),
-                BETTER_AUTH_URL: bindings.secret(),
                 MAIN_DB: bindings.d1({
                     id: MAIN_DB_ID,
                     dev: { remote: false },
@@ -33,6 +29,8 @@ export default defineConfig(({ mode }) => {
                     worker: APP_NAME,
                     exportName: TASK_ORCHESTRATOR_CLASS_NAME,
                 }),
+                // Must match DYNAMIC_WORKFLOW_BINDING in
+                // src/integrations/dynamic-worker/constants.ts.
                 DYNAMIC_WORKFLOW: bindings.workflow({
                     worker: APP_NAME,
                     name: "dynamic-workflow",
@@ -43,6 +41,9 @@ export default defineConfig(({ mode }) => {
             exports: {
                 [TASK_ORCHESTRATOR_CLASS_NAME]: exports.durableObject({
                     storage: "sqlite",
+                }),
+                [DYNAMIC_WORKFLOW_CLASS_NAME]: exports.workflow({
+                    name: "dynamic-workflow",
                 }),
             },
         },

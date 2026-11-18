@@ -113,7 +113,7 @@ export const violations: Violation[] = [
     },
     {
         code: "invalid_declared_branch",
-        title: "Branch name cannot be a task name",
+        title: "Branch name cannot be a task id",
         dag: "billing_sync",
         severity: "error",
         detectedAt: "1 hour ago",

@@ -1,6 +1,7 @@
 import type { TASK_KIND_ENUM } from "../kind";
 import type { AnySchema, AnyTaskFn, TaskDefinitionBase, TaskFn } from "./base";
 import type { BranchTaskDefinition } from "./branch";
+import type { DAGId } from "./dag-id";
 import type { DelayTaskDefinition } from "./delay";
 import type { SensorTaskDefinition } from "./sensor";
 import type { ShortCircuitTaskDefinition } from "./short-circuit";
@@ -66,7 +67,7 @@ export interface AnyTriggerTaskDefinition extends TaskDefinitionBase<
     AnySchema,
     AnySchema
 > {
-    readonly dagName: string;
+    readonly dagId: DAGId;
     readonly waitForCompletion: boolean;
 }
 
@@ -82,7 +83,7 @@ export type AnyTaskDefinition =
     | AnyTriggerTaskDefinition;
 
 /**
- * A registered task definition with callbacks erased to the generic task name.
+ * A registered task definition with callbacks erased to the generic task id.
  *
  * Schemas are erased to `AnySchema` so a registered view keeps the declared
  * `input`/`output` fields without committing to their inferred types.

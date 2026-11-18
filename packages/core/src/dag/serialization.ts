@@ -6,6 +6,7 @@ import { TASK_KIND_ENUM } from "../task/kind";
 import type { TaskKind } from "../task/kind";
 import type { TriggerRule } from "../task/trigger-rule";
 import type { TaskConfig } from "../task/types/base";
+import type { DAGMetadata } from "./metadata";
 import type { DAGTask } from "./registered-task";
 
 /**
@@ -13,13 +14,9 @@ import type { DAGTask } from "./registered-task";
  */
 export interface TaskJsonBase<Kind extends TaskKind> {
     /**
-     * Content-derived task ID, stable for the same name and function source.
+     * Unique id within the owning DAG.
      */
     readonly id: string;
-    /**
-     * Unique name within the owning DAG.
-     */
-    readonly name: string;
     /**
      * Discriminates the task kind.
      */
@@ -82,9 +79,9 @@ export interface TriggerTaskJson extends TaskJsonBase<
     typeof TASK_KIND_ENUM.Trigger
 > {
     /**
-     * Name of the DAG to trigger.
+     * ID of the DAG to trigger.
      */
-    readonly dagName: string;
+    readonly dagId: string;
     /**
      * Whether the trigger waits for the target DAG to finish.
      */
@@ -103,13 +100,17 @@ export type TaskJson =
     | TriggerTaskJson;
 
 /**
- * JSON-safe snapshot of a DAG; edge lists contain task names.
+ * JSON-safe snapshot of a DAG; edge lists contain task ids.
  */
 export interface DAGJson {
     /**
-     * Name of the DAG.
+     * Airflow-style id of the DAG.
      */
-    readonly name: string;
+    readonly dagId: string;
+    /**
+     * Optional human-readable description of the DAG.
+     */
+    readonly description?: string;
     /**
      * Registered tasks in registration order.
      */
@@ -120,10 +121,9 @@ export interface DAGJson {
 function taskJsonBase(task: DAGTask): Omit<TaskJsonBase<TaskKind>, "kind"> {
     const base = {
         id: task.id,
-        name: task.name,
         triggerRule: task.triggerRule,
-        upstream: [...task.upstream].map((upstream) => upstream.name),
-        downstream: [...task.downstream].map((downstream) => downstream.name),
+        upstream: [...task.upstream].map((upstream) => upstream.id),
+        downstream: [...task.downstream].map((downstream) => downstream.id),
     };
 
     if (task.description === undefined && task.config === undefined) {
@@ -145,8 +145,13 @@ function taskJsonBase(task: DAGTask): Omit<TaskJsonBase<TaskKind>, "kind"> {
     };
 }
 
-/** Snapshot one task, omitting functions and absent optional fields. */
-function taskJson(task: DAGTask): TaskJson {
+/**
+ * Snapshot one task, omitting functions and absent optional fields.
+ *
+ * Also backs `DAGTask.toJSON()`, so a task handle and the same task inside
+ * `DAG.toJSON()` always have the same shape.
+ */
+export function serializeTask(task: DAGTask): TaskJson {
     const base = taskJsonBase(task);
     const { definition } = task;
 
@@ -182,7 +187,7 @@ function taskJson(task: DAGTask): TaskJson {
             return {
                 ...base,
                 kind: TASK_KIND_ENUM.Trigger,
-                dagName: definition.dagName,
+                dagId: definition.dagId,
                 waitForCompletion: definition.waitForCompletion,
             };
         }
@@ -196,15 +201,26 @@ function taskJson(task: DAGTask): TaskJson {
 /**
  * Return a JSON-safe snapshot of a DAG.
  *
- * Tasks keep their task IDs, names, kinds, descriptions, trigger rules,
- * configs, and serializable kind-specific fields; edges are listed by task
- * name. Functions are omitted. `JSON.stringify(dag)` calls this through
- * `DAG.toJSON()`, so `config` values must be JSON-serializable for that
- * conversion.
+ * The snapshot keeps the DAG id and description; tasks keep their ids, kinds,
+ * descriptions, trigger rules, configs, and serializable kind-specific fields;
+ * edges are listed by task id. Functions are omitted. `JSON.stringify(dag)`
+ * calls this through `DAG.toJSON()`, so `config` values must be
+ * JSON-serializable for that conversion.
  */
-export function serializeDAG(name: string, tasks: readonly DAGTask[]): DAGJson {
+export function serializeDAG(
+    dagId: string,
+    metadata: DAGMetadata,
+    tasks: readonly DAGTask[]
+): DAGJson {
+    const serializedTasks = tasks.map((task) => serializeTask(task));
+
+    if (metadata.description === undefined) {
+        return { dagId, tasks: serializedTasks };
+    }
+
     return {
-        name,
-        tasks: tasks.map((task) => taskJson(task)),
+        dagId,
+        description: metadata.description,
+        tasks: serializedTasks,
     };
 }

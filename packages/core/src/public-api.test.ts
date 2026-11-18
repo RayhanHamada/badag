@@ -4,6 +4,7 @@ import {
     branch,
     createDAG,
     DAG,
+    DAG_VIOLATION_ENUM,
     delay,
     sensor,
     shortCircuit,
@@ -14,6 +15,7 @@ import {
 } from "./index";
 import type {
     DAGJson,
+    DAGMetadata,
     DAGTask,
     TaskConfig,
     TaskContext,
@@ -27,10 +29,10 @@ import type {
     WiringOperand,
 } from "./index";
 
-// A generic helper widens names to string, so its chain is not statically
+// A generic helper widens ids to string, so its wiring is not statically
 // checked; it must still typecheck.
 const connect = (dag: DAG, from: TaskLike, to: TaskLike): void => {
-    dag.chain(from, to);
+    dag.addDependency(from, to);
 };
 
 const createInvalidTriggerRule = () =>
@@ -65,7 +67,7 @@ describe("public task types", () => {
             delay("delay", { durationMs: 0 }),
             branch("branch", { choose: () => "left" }),
             shortCircuit("gate", { condition: () => true }),
-            trigger("trigger", { dagName: "child" }),
+            trigger("trigger", { dagId: "child" }),
         ];
 
         expect(definitions.map(({ kind }) => kind)).toStrictEqual([
@@ -96,8 +98,8 @@ describe("public task types", () => {
 
     it("preserves task definition literals and function types", () => {
         const definition = createTask("double", {
-            fn: (ctx) => ctx.name.length * 2,
-            description: "Double the name length",
+            fn: (ctx) => ctx.id.length * 2,
+            description: "Double the id length",
             config: { timeout_ms: 500 },
             triggerRule: TRIGGER_RULE_ENUM.OneFailed,
         });
@@ -105,7 +107,7 @@ describe("public task types", () => {
         expectTypeOf(definition).toEqualTypeOf<
             TaskParamOutput<"double", (ctx: TaskContext<"double">) => number>
         >();
-        expectTypeOf(definition.name).toEqualTypeOf<"double">();
+        expectTypeOf(definition.id).toEqualTypeOf<"double">();
         expectTypeOf(definition.fn).toEqualTypeOf<
             (ctx: TaskContext<"double">) => number
         >();
@@ -120,7 +122,7 @@ describe("public task types", () => {
 
     it("keeps inputs optional and rejects unknown trigger rules", () => {
         const input: TaskParamInput<(ctx: TaskContext<"extract">) => string> = {
-            fn: (ctx) => ctx.name,
+            fn: (ctx) => ctx.id,
         };
 
         expectTypeOf(input.description).toEqualTypeOf<string | undefined>();
@@ -164,12 +166,16 @@ describe("public task types", () => {
             triggerRule: TRIGGER_RULE_ENUM.AllDone,
         });
 
-        const dag = createDAG("etl").chain(definition);
+        const dag = createDAG("etl").parse`${definition}`;
         const json = dag.toJSON();
         const [taskJson] = json.tasks;
 
         expectTypeOf(json).toEqualTypeOf<DAGJson>();
+        expectTypeOf(json.dagId).toEqualTypeOf<string>();
         expectTypeOf(taskJson).toEqualTypeOf<TaskJson>();
+        expectTypeOf(dag.getTask("report")?.toJSON()).toEqualTypeOf<
+            TaskJson | undefined
+        >();
         expectTypeOf(taskJson.triggerRule).toEqualTypeOf<TriggerRule>();
         expectTypeOf(taskJson.upstream).toEqualTypeOf<readonly string[]>();
         expect(taskJson.triggerRule).toBe(TRIGGER_RULE_ENUM.AllDone);
@@ -178,7 +184,7 @@ describe("public task types", () => {
     it("types DAG query results", () => {
         const dag = createDAG("etl");
 
-        expectTypeOf(dag.name).toEqualTypeOf<"etl">();
+        expectTypeOf(dag.dagId).toEqualTypeOf<"etl">();
         expectTypeOf(dag.tasks).toEqualTypeOf<ReadonlyMap<string, DAGTask>>();
         expectTypeOf(dag.topologicalSort()).toEqualTypeOf<DAGTask[]>();
     });
@@ -188,12 +194,32 @@ describe("public task types", () => {
 
         expect(dag).toBeInstanceOf(DAG);
         expectTypeOf(dag).toEqualTypeOf<DAG<"etl">>();
-        expectTypeOf(dag.name).toEqualTypeOf<"etl">();
+        expectTypeOf(dag.dagId).toEqualTypeOf<"etl">();
         expectTypeOf(dag.getTask("extract")).toEqualTypeOf<
             DAGTask<"extract"> | undefined
         >();
-        expect(dag.name).toBe("etl");
-        expect(() => createDAG("")).toThrow("DAG name cannot be empty");
+        expect(dag.dagId).toBe("etl");
+    });
+
+    it("types DAG metadata", () => {
+        const metadata: DAGMetadata = { description: "Nightly ETL" };
+        const dag = createDAG("etl", metadata);
+
+        expectTypeOf(dag.metadata).toEqualTypeOf<DAGMetadata>();
+        expectTypeOf(dag.toJSON().description).toEqualTypeOf<
+            string | undefined
+        >();
+        expect(dag.metadata).toStrictEqual(metadata);
+    });
+
+    it("reports an invalid DAG id through validate", () => {
+        expect(createDAG("").validate()).toStrictEqual([
+            {
+                code: DAG_VIOLATION_ENUM.InvalidDagId,
+                message: "DAG id cannot be empty",
+                subjects: [""],
+            },
+        ]);
     });
 
     it("accepts context callbacks on definitions and handles", () => {
@@ -203,14 +229,12 @@ describe("public task types", () => {
             (ctx: TaskContext<"extract">) => Promise<number>
         >().toExtend<TaskFn<"extract">>();
         expectTypeOf<TaskContext<"extract">>().toEqualTypeOf<{
-            readonly id: string;
-            readonly name: "extract";
+            readonly id: "extract";
             readonly payload: undefined;
         }>();
 
-        const dag = createDAG("etl").chain(
-            createTask("extract", { fn: async () => "raw" })
-        );
+        const dag = createDAG("etl")
+            .parse`${createTask("extract", { fn: async () => "raw" })}`;
 
         const handle = dag.getTask("extract");
 
@@ -224,8 +248,8 @@ describe("public task types", () => {
     });
 });
 
-describe("compile-time chain validation", () => {
-    it("types parse operands without adding static edge state", () => {
+describe("compile-time parse validation", () => {
+    it("types parse operands and registers tasks", () => {
         const extract = createTask("extract", { fn: () => "raw" });
         const transform = createTask("transform", { fn: () => "clean" });
         const load = createTask("load", { fn: () => "stored" });
@@ -248,14 +272,14 @@ describe("compile-time chain validation", () => {
         expect(parseNumberOperands).toBeTypeOf("function");
     });
 
-    it("accumulates parsed tasks as signatures, like chain", () => {
+    it("accumulates parsed tasks as signatures", () => {
         const extract = createTask("extract", { fn: () => "raw" });
         const load = createTask("load", { fn: () => "stored" });
 
         const parsed = createDAG("etl").parse`${extract} >> ${[load]}`;
 
-        // Re-passing the same definition is allowed, as in `chain`: the
-        // signature already registered is identical, not merely a duplicate.
+        // Re-passing the same definition is allowed: the signature already
+        // registered is identical, not merely a duplicate.
         expect(() => parsed.parse`${extract} >> ${load}`).not.toThrow();
         expect(() => parsed.parse`${extract}`).not.toThrow();
         expect(parsed.tasks.size).toBe(2);
@@ -264,18 +288,14 @@ describe("compile-time chain validation", () => {
         >();
     });
 
-    it("rejects a duplicate registered through chain or parse", () => {
+    it("rejects a duplicate registered through parse", () => {
         const extract = createTask("extract", { fn: () => "raw" });
         const dag = createDAG("etl").parse`${extract}`;
         const duplicate = createTask("extract", { fn: () => 1 });
 
         // @ts-expect-error - parse registered "extract" with another signature
-        const viaChain = () => dag.chain(duplicate);
-
-        // @ts-expect-error - parse registered "extract" with another signature
         const viaParse = () => dag.parse`${duplicate}`;
 
-        expect(viaChain).toThrow('Task "extract" already exists in DAG "etl"');
         expect(viaParse).toThrow('Task "extract" already exists in DAG "etl"');
     });
 
@@ -292,7 +312,7 @@ describe("compile-time chain validation", () => {
 
         const dag = createDAG("redeclare").parse`${wide}`;
 
-        // @ts-expect-error - same name, different declared branches
+        // @ts-expect-error - same id, different declared branches
         const conflict = () => dag.parse`${narrow}`;
 
         expect(conflict).toThrow(
@@ -309,7 +329,7 @@ describe("compile-time chain validation", () => {
         expect(() => dag.parse`${duplicate}`).toThrow(/already exists/u);
     });
 
-    it("keeps parse out of the static edge state", () => {
+    it("rejects a cycle wired through parse", () => {
         const extract = createTask("extract", { fn: () => "raw" });
         const load = createTask("load", { fn: () => "stored" });
         const sink = createTask("sink", { fn: () => "done" });
@@ -317,18 +337,16 @@ describe("compile-time chain validation", () => {
         const dag = createDAG("etl").parse`${extract} >> ${load}`
             .parse`${load} >> ${sink}`;
 
-        // TypeScript never saw the operators, so the edges it would need to
-        // close a cycle are absent; the runtime check still rejects it.
-        expect(() => dag.chain(sink, extract)).toThrow(
+        expect(() => dag.parse`${sink} >> ${extract}`).toThrow(
             'Dependency "sink" -> "extract" creates a cycle'
         );
     });
 
-    it("preserves literal names and handle types", () => {
+    it("preserves literal ids and handle types", () => {
         const extract = createTask("extract", { fn: () => "raw" });
-        const dag = createDAG("typed").chain(extract);
+        const dag = createDAG("typed").parse`${extract}`;
 
-        expectTypeOf(extract.name).toEqualTypeOf<"extract">();
+        expectTypeOf(extract.id).toEqualTypeOf<"extract">();
         expectTypeOf(dag).toExtend<DAG>();
         expectTypeOf(dag.getTask("extract")).toEqualTypeOf<
             DAGTask<"extract"> | undefined
@@ -338,10 +356,9 @@ describe("compile-time chain validation", () => {
     it("rejects cycles, duplicates, and self edges", () => {
         const extract = createTask("extract", { fn: () => "raw" });
         const load = createTask("load", { fn: () => "stored" });
-        const dag = createDAG("typed").chain(extract, load);
+        const dag = createDAG("typed").parse`${extract} >> ${load}`;
 
-        // @ts-expect-error - load -> extract closes a cycle
-        const createCycle = () => dag.chain(load, extract);
+        const createCycle = () => dag.parse`${load} >> ${extract}`;
 
         expect(createCycle).toThrow(
             'Dependency "load" -> "extract" creates a cycle'
@@ -349,21 +366,19 @@ describe("compile-time chain validation", () => {
 
         const duplicate = createTask("extract", { fn: () => 1 });
 
-        // @ts-expect-error - same name with a different signature
-        const registerDuplicate = () => dag.chain(duplicate);
+        // @ts-expect-error - same id with a different signature
+        const registerDuplicate = () => dag.parse`${duplicate}`;
 
         expect(registerDuplicate).toThrow(
             'Task "extract" already exists in DAG "typed"'
         );
 
-        // @ts-expect-error - a task cannot depend on itself
-        const createSelfEdge = () => dag.chain(load, load);
+        const createSelfEdge = () => dag.parse`${load} >> ${load}`;
 
         expect(createSelfEdge).toThrow("A task cannot depend on itself");
 
         const createLoop = () =>
-            // @ts-expect-error - extract -> load -> extract in one call
-            createDAG("loop").chain(extract, load, extract);
+            createDAG("loop").parse`${extract} >> ${load} >> ${extract}`;
 
         expect(createLoop).toThrow(
             'Dependency "load" -> "extract" creates a cycle'
@@ -376,34 +391,32 @@ describe("compile-time chain validation", () => {
         const graph = createDAG("overlap");
 
         const createOverlap = () =>
-            // @ts-expect-error - load would depend on itself
-            graph.chain([extract, load], [load, extract]);
+            graph.parse`${[extract, load]} >> ${[load, extract]}`;
 
         expect(createOverlap).toThrow("A task cannot depend on itself");
     });
 
-    it("rejects a cycle spread across kept chain results", () => {
+    it("rejects a cycle spread across kept parse results", () => {
         const extract = createTask("extract", { fn: () => "raw" });
         const transform = createTask("transform", { fn: () => "clean" });
         const load = createTask("load", { fn: () => "stored" });
 
-        const first = createDAG("steps").chain(extract, transform);
-        const second = first.chain(transform, load);
+        const first = createDAG("steps").parse`${extract} >> ${transform}`;
+        const second = first.parse`${transform} >> ${load}`;
 
-        // @ts-expect-error - extract -> transform -> load -> extract
-        const createCycle = () => second.chain(load, extract);
+        const createCycle = () => second.parse`${load} >> ${extract}`;
 
         expect(createCycle).toThrow(
             'Dependency "load" -> "extract" creates a cycle'
         );
     });
 
-    it("rejects a duplicate inside one chain call", () => {
+    it("rejects a duplicate inside one parse call", () => {
         const first = createTask("same", { fn: () => 1 });
         const second = createTask("same", { fn: () => "two" });
 
-        // @ts-expect-error - task name collisions in one chain call
-        const registerBoth = () => createDAG("batch").chain([first, second]);
+        // @ts-expect-error - task id collisions in one parse call
+        const registerBoth = () => createDAG("batch").parse`${[first, second]}`;
 
         expect(registerBoth).toThrow(
             'Task "same" already exists in DAG "batch"'
@@ -420,17 +433,15 @@ describe("compile-time chain validation", () => {
         const eu = createTask("eu", { fn: () => 0 });
         const apac = createTask("apac", { fn: () => 0 });
 
-        const valid = createDAG("branches").chain(route, [us, eu]);
+        const valid = createDAG("branches").parse`${route} >> ${[us, eu]}`;
 
-        // @ts-expect-error - apac is not a declared branch
-        const undeclared = () => valid.chain(route, apac);
+        const undeclared = () => valid.parse`${route} >> ${apac}`;
 
         expect(undeclared).toThrow(
             'Branch "route" cannot route to "apac"; declared branches are "us", "eu"'
         );
 
-        // @ts-expect-error - eu is declared but not routed
-        const incomplete = () => createDAG("partial").chain(route, us);
+        const incomplete = () => createDAG("partial").parse`${route} >> ${us}`;
 
         expect(incomplete).toThrow(
             'Branch "route" must route to declared branch "eu"'
@@ -443,10 +454,10 @@ describe("compile-time chain validation", () => {
             choose: () => "us",
         });
 
-        const dag = createDAG("branch-ok").chain(route, [
-            createTask("us", { fn: () => 0 }),
-            createTask("eu", { fn: () => 0 }),
-        ]);
+        const us = createTask("us", { fn: () => 0 });
+        const eu = createTask("eu", { fn: () => 0 });
+
+        const dag = createDAG("branch-ok").parse`${route} >> ${[us, eu]}`;
 
         expect(dag.tasks.size).toBe(3);
     });
@@ -460,26 +471,30 @@ describe("compile-time chain validation", () => {
         const us = createTask("us", { fn: () => 0 });
 
         // The declaration lives on the DAG type, so a later call is checked.
-        const dag = createDAG("split").chain(route).chain(route, us);
+        const dag = createDAG("split").parse`${route}`.parse`${route} >> ${us}`;
 
         expect(dag.tasks.size).toBe(2);
     });
 
     it("accepts a branch that declares no branches", () => {
-        const dag = createDAG("free").chain(
-            branch("route", { choose: () => "anything" }),
-            createTask("anything", { fn: () => 0 })
-        );
+        const route = branch("route", { choose: () => "anything" });
+        const anything = createTask("anything", { fn: () => 0 });
+
+        const dag = createDAG("free").parse`${route} >> ${anything}`;
 
         expect(dag.tasks.size).toBe(2);
     });
 
     it("accepts a branch wired to another branch task", () => {
-        const dag = createDAG("nested").chain(
-            branch("route", { branches: ["next"], choose: () => "next" }),
-            branch("next", { branches: ["us"], choose: () => "us" }),
-            createTask("us", { fn: () => 0 })
-        );
+        const route = branch("route", {
+            branches: ["next"],
+            choose: () => "next",
+        });
+
+        const next = branch("next", { branches: ["us"], choose: () => "us" });
+        const us = createTask("us", { fn: () => 0 });
+
+        const dag = createDAG("nested").parse`${route} >> ${next} >> ${us}`;
 
         expect(dag.tasks.size).toBe(3);
     });
@@ -490,16 +505,16 @@ describe("compile-time chain validation", () => {
             choose: () => [] as const,
         });
 
-        const routed = () =>
-            // @ts-expect-error - an empty declaration routes nowhere
-            createDAG("empty").chain(empty, createTask("us", { fn: () => 0 }));
+        const us = createTask("us", { fn: () => 0 });
+
+        const routed = () => createDAG("empty").parse`${empty} >> ${us}`;
 
         expect(routed).toThrow(
             'Branch "route" cannot route to "us"; it declares no branches'
         );
     });
 
-    it("rejects a same-name branch with a different declared set", () => {
+    it("rejects a same-id branch with a different declared set", () => {
         const wide = branch("route", {
             branches: ["us", "eu"],
             choose: () => "us",
@@ -510,10 +525,10 @@ describe("compile-time chain validation", () => {
             choose: () => "us",
         });
 
-        const dag = createDAG("redeclare").chain(wide);
+        const dag = createDAG("redeclare").parse`${wide}`;
 
-        // @ts-expect-error - same name, different declared branches
-        const conflict = () => dag.chain(narrow);
+        // @ts-expect-error - same id, different declared branches
+        const conflict = () => dag.parse`${narrow}`;
 
         expect(conflict).toThrow(
             'Task "route" already exists in DAG "redeclare"'
@@ -526,10 +541,8 @@ describe("compile-time chain validation", () => {
         const load = createTask("load", { fn: () => "stored" });
 
         const diamond = createDAG("diamond")
-            .chain(extract, [transform, load])
-            .chain(extract, load)
-            .chain(extract)
-            .chain(transform);
+            .parse`${extract} >> ${[transform, load]}`
+            .parse`${extract} >> ${load}`.parse`${extract}`.parse`${transform}`;
 
         expect(diamond.tasks.size).toBe(3);
 
@@ -538,65 +551,5 @@ describe("compile-time chain validation", () => {
         connect(generic, extract, transform);
 
         expect(generic.tasks.size).toBe(2);
-    });
-
-    it("accepts chains above the static-check group limit", () => {
-        const tasks = [
-            createTask("t00", { fn: () => 0 }),
-            createTask("t01", { fn: () => 0 }),
-            createTask("t02", { fn: () => 0 }),
-            createTask("t03", { fn: () => 0 }),
-            createTask("t04", { fn: () => 0 }),
-            createTask("t05", { fn: () => 0 }),
-            createTask("t06", { fn: () => 0 }),
-            createTask("t07", { fn: () => 0 }),
-            createTask("t08", { fn: () => 0 }),
-            createTask("t09", { fn: () => 0 }),
-            createTask("t10", { fn: () => 0 }),
-            createTask("t11", { fn: () => 0 }),
-            createTask("t12", { fn: () => 0 }),
-            createTask("t13", { fn: () => 0 }),
-            createTask("t14", { fn: () => 0 }),
-            createTask("t15", { fn: () => 0 }),
-            createTask("t16", { fn: () => 0 }),
-            createTask("t17", { fn: () => 0 }),
-            createTask("t18", { fn: () => 0 }),
-            createTask("t19", { fn: () => 0 }),
-            createTask("t20", { fn: () => 0 }),
-            createTask("t21", { fn: () => 0 }),
-            createTask("t22", { fn: () => 0 }),
-            createTask("t23", { fn: () => 0 }),
-            createTask("t24", { fn: () => 0 }),
-            createTask("t25", { fn: () => 0 }),
-            createTask("t26", { fn: () => 0 }),
-            createTask("t27", { fn: () => 0 }),
-            createTask("t28", { fn: () => 0 }),
-            createTask("t29", { fn: () => 0 }),
-            createTask("t30", { fn: () => 0 }),
-            createTask("t31", { fn: () => 0 }),
-            createTask("t32", { fn: () => 0 }),
-            createTask("t33", { fn: () => 0 }),
-            createTask("t34", { fn: () => 0 }),
-            createTask("t35", { fn: () => 0 }),
-            createTask("t36", { fn: () => 0 }),
-            createTask("t37", { fn: () => 0 }),
-            createTask("t38", { fn: () => 0 }),
-            createTask("t39", { fn: () => 0 }),
-            createTask("t40", { fn: () => 0 }),
-            createTask("t41", { fn: () => 0 }),
-            createTask("t42", { fn: () => 0 }),
-            createTask("t43", { fn: () => 0 }),
-            createTask("t44", { fn: () => 0 }),
-            createTask("t45", { fn: () => 0 }),
-            createTask("t46", { fn: () => 0 }),
-            createTask("t47", { fn: () => 0 }),
-            createTask("t48", { fn: () => 0 }),
-            createTask("t49", { fn: () => 0 }),
-        ] as const;
-
-        const dag = createDAG("large").chain(...tasks);
-
-        expect(dag.tasks.size).toBe(50);
-        expect(dag.topologicalSort()).toHaveLength(50);
     });
 });

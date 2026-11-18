@@ -2,7 +2,7 @@
  * Public surface of the task module.
  *
  * Exports the factories, the kind enum, and the definition types. Internal
- * helpers (`taskMetadata`, `normalizeTaskName`, `taskBehaviorSource`, and the
+ * helpers (`taskMetadata`, `normalizeTaskId`, `sameTaskBehavior`, and the
  * duration assertions) stay module-private so importing this barrel never
  * widens the package's API.
  */
@@ -38,6 +38,8 @@ export type {
     TaskSchema,
     TaskSchemas,
 } from "./types/base";
+
+export type { DAGId, DAGIdRegistry } from "./types/dag-id";
 
 export type {
     AnyBranchTaskDefinition,

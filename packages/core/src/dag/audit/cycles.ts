@@ -1,6 +1,6 @@
 /** Detect cycles in a graph audit. */
 
-import { quoteNames } from "../format";
+import { quoteValues } from "../format";
 import type { DAGTask } from "../registered-task";
 import { DAG_VIOLATION_ENUM } from "./violation";
 import type { DAGViolation } from "./violation";
@@ -21,7 +21,7 @@ interface Frame {
  * findings, because each closes on its own back edge.
  */
 export function findCycleViolations(
-    dagName: string,
+    dagId: string,
     tasks: readonly DAGTask[],
     registered: ReadonlySet<DAGTask>
 ): DAGViolation[] {
@@ -87,10 +87,10 @@ export function findCycleViolations(
 
             violations.push({
                 code: DAG_VIOLATION_ENUM.Cycle,
-                message: `DAG "${dagName}" contains a cycle: ${quoteNames(
-                    cycle.map((task) => task.name)
+                message: `DAG "${dagId}" contains a cycle: ${quoteValues(
+                    cycle.map((task) => task.id)
                 )}`,
-                subjects: cycle.map((task) => task.name),
+                subjects: cycle.map((task) => task.id),
             });
         }
     }

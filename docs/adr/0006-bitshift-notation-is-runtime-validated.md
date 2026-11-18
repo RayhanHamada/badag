@@ -1,5 +1,7 @@
 # Bitshift notation is runtime-validated
 
+> **Superseded in part:** `DAG.chain()` is deferred for now; see the [roadmap](../roadmap.md). The `parse()` behavior below is unchanged. References to `chain()`, `ChainProblem`, and the `Edges` type parameter describe the state when this ADR was written.
+
 `DAG.parse` accepts Airflow-style wiring as a tagged template — `dag.parse`${a} >> ${b} >> ${c}`` — and validates the graph at runtime instead of at compile time. The obstacle is TypeScript, not the design: a tagged template infers the interpolated **values** as literals, but never the literal **segments** that hold the operators. Compiling several candidate signatures (`<const S extends readonly string[]>`, `S & TemplateStringsArray`, `readonly [...S] & TemplateStringsArray`) yields `TemplateStringsArray` or `readonly string[]` for the segments in every case, so the operator sequence — and therefore edge direction — is invisible to the type system. Operands are still typed: each interpolation must be a task or a flat list of tasks, so a string, a number, or a nested list fails to typecheck.
 
 ## Consequences
@@ -7,9 +9,9 @@
 - `parse()` accumulates `Signatures` and `Branches` in the returned DAG type, exactly as `chain()` does. A duplicate definition registered by an earlier `parse()` or `chain()` call is therefore rejected at compile time, and a branch task's declared set is checked for consistency across calls. `ParseProblem` is `ChainProblem` without the cycle, self-edge, and branch-routing checks — the three that need to know which way an edge points.
 - `parse()` never populates `Edges`. Operators are invisible to the type system, so any edge state it wrote would be guesswork; a later `chain()` cycle check would then see a graph that looks complete while missing real edges, and silently pass cycles. Leaving `Edges` empty keeps that check's false negatives predictable: it only ever under-reports parse-added edges, and runtime rejects every cycle regardless.
 - The asymmetry is deliberate and visible: tasks from `parse()` are in the type system, edges are not.
-- Every graph guarantee `chain()` has at runtime, `parse()` has too: self edges, cycles, cross-DAG handles, duplicate names and IDs, declared branch routing, and all-or-nothing rollback. Only the compile-time half is absent.
+- Every graph guarantee `chain()` has at runtime, `parse()` has too: self edges, cycles, cross-DAG handles, duplicate ids, declared branch routing, and all-or-nothing rollback. Only the compile-time half is absent.
 - The notation is one expression per call. A newline is an error rather than a statement separator, which keeps the grammar to a single left-associative operator chain and makes "one call, one wiring expression" a rule you can see in the source.
-- The parser is a pure function (`parseWiringExpression`) that takes a DAG name, the template segments, and the operands, and returns steps plus the flattened operand list. The DAG feeds those into the same registration and edge-planning path as `chain()`, so the notation cannot drift from the method API.
+- The parser is a pure function (`parseWiringExpression`) that takes a DAG id, the template segments, and the operands, and returns steps plus the flattened operand list. The DAG feeds those into the same registration and edge-planning path as `chain()`, so the notation cannot drift from the method API.
 - Edge steps are applied independently rather than as a chain of consecutive wiring sets, because `a >> b << c` produces two steps that share no direction. `#addEdges` was refactored onto the same batch-of-steps primitive so both paths share cycle planning and branch assertion.
 
 ## Considered options
