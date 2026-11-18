@@ -1,0 +1,140 @@
+name: CI
+
+on:
+    push:
+        # Main only receives merges after CI passed, so it is not re-run there.
+        branches-ignore: [main]
+    pull_request:
+    workflow_dispatch:
+
+concurrency:
+    group: ci-${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+permissions:
+    contents: read
+
+env:
+    TURBO_TELEMETRY_DISABLED: "1"
+    DO_NOT_TRACK: "1"
+
+jobs:
+    web:
+        name: Format, test, build
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        env:
+            # Optional: set a TURBO_TOKEN secret and TURBO_TEAM repository variable
+            # to use Turborepo Remote Cache. When unset, only the local .turbo
+            # cache restored by actions/cache below is used.
+            TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+            TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+        steps:
+            - name: Check out code
+              uses: actions/checkout@v6
+
+            - name: Set up Bun
+              uses: oven-sh/setup-bun@v2
+
+            - name: Cache Bun package downloads
+              uses: actions/cache@v6
+              with:
+                  path: ~/.bun/install/cache
+                  key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+                  restore-keys: bun-${{ runner.os }}-
+
+            - name: Cache Turborepo
+              uses: actions/cache@v6
+              with:
+                  path: .turbo
+                  key: turbo-${{ runner.os }}-web-${{ github.sha }}
+                  restore-keys: |
+                      turbo-${{ runner.os }}-web-
+                      turbo-${{ runner.os }}-
+
+            - name: Install dependencies
+              run: bun install --frozen-lockfile
+
+            - name: Format and lint
+              run: bun run check
+
+            - name: Unit tests
+              run: bun run test
+
+            - name: Build
+              run: bun run build
+
+            - name: Cache Playwright browsers
+              uses: actions/cache@v6
+              with:
+                  path: ~/.cache/ms-playwright
+                  key: playwright-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+                  restore-keys: playwright-${{ runner.os }}-
+
+            - name: Install Playwright Chromium
+              run: bunx playwright install --with-deps chromium
+              working-directory: apps/dashboard
+
+            - name: End-to-end tests
+              run: bun run test:e2e
+
+    rust:
+        name: Rust format, lint, test, build
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        env:
+            TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+            TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+        steps:
+            - name: Check out code
+              uses: actions/checkout@v6
+
+            - name: Set up Bun
+              uses: oven-sh/setup-bun@v2
+
+            - name: Cache Bun package downloads
+              uses: actions/cache@v6
+              with:
+                  path: ~/.bun/install/cache
+                  key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+                  restore-keys: bun-${{ runner.os }}-
+
+            - name: Cache Turborepo
+              uses: actions/cache@v6
+              with:
+                  path: .turbo
+                  key: turbo-${{ runner.os }}-rust-${{ github.sha }}
+                  restore-keys: |
+                      turbo-${{ runner.os }}-rust-
+                      turbo-${{ runner.os }}-
+
+            - name: Install dependencies
+              run: bun install --frozen-lockfile
+
+            # The CLI's TypeScript fixture imports the built @badag/sdk, so the
+            # Rust tests need the SDK bundle and the fixture's own install.
+            - name: Build SDK fixture dependency
+              run: bun run build --filter=@badag/sdk
+
+            - name: Install CLI fixture dependencies
+              run: bun install --frozen-lockfile
+              working-directory: crates/badag-cli/tests/fixtures/typescript-dag
+
+            - name: Install Rust toolchain
+              run: >-
+                  rustup toolchain install stable --profile minimal --component rustfmt --component clippy
+
+            - name: Cache Rust build
+              uses: Swatinem/rust-cache@v2
+
+            - name: Check formatting
+              run: cargo fmt --all -- --check
+
+            - name: Clippy
+              run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+            - name: Test
+              run: cargo test --workspace --locked
+
+            - name: Build
+              run: cargo build --workspace --locked
