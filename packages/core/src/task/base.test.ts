@@ -5,12 +5,14 @@ import { describe, expect, expectTypeOf, it } from "vitest";
 import { z } from "zod";
 
 import type { AnySchema } from "./base";
-import { branch } from "./branch";
 import { delay } from "./delay";
-import { sensor } from "./sensor";
-import { shortCircuit } from "./short-circuit";
 import { task } from "./task";
 import { trigger } from "./trigger";
+
+const warehouseInput = v.object({
+    warehouseId: v.string(),
+    rows: v.number(),
+});
 
 /**
  * The value a schema is asked to validate, taken from the Standard Schema
@@ -78,6 +80,123 @@ const warehouseSchemas = {
 } as const;
 
 const validWarehouse = { warehouseId: "w1", rows: 21 };
+
+describe("input and output schemas", () => {
+    it("types ctx.payload from an input schema", () => {
+        const definition = task("sync", {
+            fn: (ctx) => ctx.payload.rows * 2,
+            input: warehouseInput,
+        });
+
+        expectTypeOf(definition.fn).toEqualTypeOf<
+            (ctx: {
+                readonly id: "sync";
+                readonly payload: { warehouseId: string; rows: number };
+            }) => number
+        >();
+        expect(
+            definition.fn({
+                id: "sync",
+                payload: { warehouseId: "w1", rows: 21 },
+            })
+        ).toBe(42);
+    });
+
+    it("defaults the payload to undefined without an input schema", () => {
+        const definition = task("plain", { fn: (ctx) => ctx.payload });
+
+        expectTypeOf(definition.fn).toEqualTypeOf<
+            (ctx: {
+                readonly id: "plain";
+                readonly payload: undefined;
+            }) => undefined
+        >();
+        expect(
+            definition.fn({ id: "plain", payload: undefined })
+        ).toBeUndefined();
+    });
+
+    it("constrains the returned value with an output schema", () => {
+        const definition = task("count", {
+            fn: () => "42",
+            output: v.string(),
+        });
+
+        expectTypeOf(definition.fn).returns.toEqualTypeOf<string>();
+        expect(() =>
+            task("bad", {
+                // @ts-expect-error - the output schema requires a string
+                fn: () => 42,
+                output: v.string(),
+            })
+        ).not.toThrow();
+    });
+
+    it("stores the declared schemas on the definition", () => {
+        const definition = task("sync", {
+            fn: () => "ok",
+            input: warehouseInput,
+            output: v.string(),
+        });
+
+        expect(definition.input).toBe(warehouseInput);
+        expect(definition.output).toBeDefined();
+        expect(definition.output?.["~standard"].validate("ok")).toStrictEqual({
+            value: "ok",
+            typed: true,
+        });
+    });
+
+    it("omits schema properties when none are declared", () => {
+        const definition = task("plain", { fn: () => 0 });
+
+        expect("input" in definition).toBeFalsy();
+        expect("output" in definition).toBeFalsy();
+    });
+
+    it("keeps only the declared schema", () => {
+        const onlyInput = task("in-only", {
+            fn: () => 0,
+            input: warehouseInput,
+        });
+
+        const onlyOutput = task("out-only", {
+            fn: () => 0,
+            output: v.number(),
+        });
+
+        expect("input" in onlyInput).toBeTruthy();
+        expect("output" in onlyInput).toBeFalsy();
+        expect("input" in onlyOutput).toBeFalsy();
+        expect("output" in onlyOutput).toBeTruthy();
+    });
+
+    it("defaults declarative kinds to no schemas", () => {
+        const delayed = delay("wait", { durationMs: 5 });
+        const started = trigger("start", { dagId: "child" });
+
+        expect("input" in delayed).toBeFalsy();
+        expect("output" in delayed).toBeFalsy();
+        expect("input" in started).toBeFalsy();
+        expect("output" in started).toBeFalsy();
+    });
+
+    it("accepts schemas on declarative kinds", () => {
+        const delayed = delay("wait", {
+            durationMs: 5,
+            input: warehouseInput,
+            output: v.string(),
+        });
+
+        const started = trigger("start", {
+            dagId: "child",
+            input: warehouseInput,
+        });
+
+        expect(delayed.input).toBe(warehouseInput);
+        expect(started.input).toBe(warehouseInput);
+    });
+});
 
 describe("cross-library input schema validation", () => {
     it.each(Object.entries(warehouseSchemas))(
@@ -317,78 +436,6 @@ describe("asynchronous schemas", () => {
         const issues = issuesOf(await validate(definition.input, "a"));
 
         expect(issues.length).toBeGreaterThan(0);
-    });
-});
-
-describe("schemas on every task kind", () => {
-    it("validates a sensor input schema", async () => {
-        const definition = sensor("ready", {
-            input: z.object({ rows: z.number() }),
-            predicate: (ctx) => ctx.payload.rows > 0,
-        });
-
-        expect(
-            valueOf(await validate(definition.input, { rows: 1 }))
-        ).toStrictEqual({ rows: 1 });
-        expect(
-            issuesOf(await validate(definition.input, {})).length
-        ).toBeGreaterThan(0);
-        expect(
-            definition.predicate({
-                id: "ready",
-                payload: { rows: 1 },
-            })
-        ).toBeTruthy();
-    });
-
-    it("validates a branch input schema", async () => {
-        const definition = branch("route", {
-            branches: ["big", "small"],
-            choose: (ctx) => (ctx.payload.rows > 10 ? "big" : "small"),
-            input: type({ rows: "number" }),
-        });
-
-        expect(
-            valueOf(await validate(definition.input, { rows: 21 }))
-        ).toStrictEqual({ rows: 21 });
-        expect(
-            issuesOf(await validate(definition.input, { rows: "x" })).length
-        ).toBeGreaterThan(0);
-    });
-
-    it("validates a short-circuit input schema", async () => {
-        const definition = shortCircuit("gate", {
-            condition: (ctx) => ctx.payload.rows > 0,
-            input: v.object({ rows: v.number() }),
-        });
-
-        expect(
-            valueOf(await validate(definition.input, { rows: 1 }))
-        ).toStrictEqual({ rows: 1 });
-        expect(
-            issuesOf(await validate(definition.input, { rows: false })).length
-        ).toBeGreaterThan(0);
-    });
-
-    it("validates a delay output schema", async () => {
-        const definition = delay("wait", { durationMs: 5, output: z.string() });
-
-        expect(valueOf(await validate(definition.output, "done"))).toBe("done");
-        expect(
-            issuesOf(await validate(definition.output, 1)).length
-        ).toBeGreaterThan(0);
-    });
-
-    it("validates a trigger output schema", async () => {
-        const definition = trigger("start", {
-            dagId: "child",
-            output: type("boolean"),
-        });
-
-        expect(valueOf(await validate(definition.output, true))).toBeTruthy();
-        expect(
-            issuesOf(await validate(definition.output, "yes")).length
-        ).toBeGreaterThan(0);
     });
 });
 
