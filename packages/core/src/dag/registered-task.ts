@@ -1,12 +1,12 @@
-import { assertTaskId } from "../task/definition/task-id";
-import type { TaskKind } from "../task/kind";
-import type { TriggerRule } from "../task/trigger-rule";
-import { DEFAULT_TRIGGER_RULE } from "../task/trigger-rule";
-import type { TaskConfig } from "../task/types/base";
+import type { TaskConfig } from "../task/base";
 import type {
     AnyTaskDefinition,
     RegisteredTaskDefinition,
-} from "../task/types/definitions";
+} from "../task/definitions";
+import { assertTaskId } from "../task/id";
+import type { TaskKind } from "../task/kind";
+import type { TriggerRule } from "../task/trigger-rule";
+import { DEFAULT_TRIGGER_RULE } from "../task/trigger-rule";
 import type { DAG } from "./dag";
 import { serializeTask } from "./serialization";
 import type { TaskJson } from "./serialization";

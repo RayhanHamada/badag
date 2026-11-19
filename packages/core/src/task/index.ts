@@ -2,22 +2,22 @@
  * Public surface of the task module.
  *
  * Exports the factories, the kind enum, and the definition types. Internal
- * helpers (`taskMetadata`, `normalizeTaskId`, `sameTaskBehavior`, and the
- * duration assertions) stay module-private so importing this barrel never
+ * helpers (`taskMetadata`, `taskSchemas`, `normalizeTaskId`,
+ * `sameTaskBehavior`) stay module-private so importing this barrel never
  * widens the package's API.
  */
 
-export { branch } from "./factories/branch";
+export { branch } from "./branch";
 
-export { delay } from "./factories/delay";
+export { delay } from "./delay";
 
-export { sensor } from "./factories/sensor";
+export { sensor } from "./sensor";
 
-export { shortCircuit } from "./factories/short-circuit";
+export { shortCircuit } from "./short-circuit";
 
-export { task } from "./factories/task";
+export { task } from "./task";
 
-export { trigger } from "./factories/trigger";
+export { trigger } from "./trigger";
 
 export { TASK_KIND_ENUM } from "./kind";
 
@@ -37,9 +37,9 @@ export type {
     TaskProducedOf,
     TaskSchema,
     TaskSchemas,
-} from "./types/base";
+} from "./base";
 
-export type { DAGId, DAGIdRegistry } from "./types/dag-id";
+export type { DAGId, DAGIdRegistry } from "./trigger";
 
 export type {
     AnyBranchTaskDefinition,
@@ -49,7 +49,7 @@ export type {
     AnyTaskDefinition,
     AnyTriggerTaskDefinition,
     RegisteredTaskDefinition,
-} from "./types/definitions";
+} from "./definitions";
 
 export type {
     BranchChoice,
@@ -57,32 +57,28 @@ export type {
     BranchTaskDefinition,
     BranchTaskInput,
     CreateBranch,
-} from "./types/branch";
+} from "./branch";
 
-export type {
-    CreateDelay,
-    DelayTaskDefinition,
-    DelayTaskInput,
-} from "./types/delay";
+export type { CreateDelay, DelayTaskDefinition, DelayTaskInput } from "./delay";
 
 export type {
     CreateSensor,
     SensorPredicate,
     SensorTaskDefinition,
     SensorTaskInput,
-} from "./types/sensor";
+} from "./sensor";
 
 export type {
     CreateShortCircuit,
     ShortCircuitCondition,
     ShortCircuitTaskDefinition,
     ShortCircuitTaskInput,
-} from "./types/short-circuit";
+} from "./short-circuit";
 
-export type { CreateTask, TaskParamInput, TaskParamOutput } from "./types/task";
+export type { CreateTask, TaskParamInput, TaskParamOutput } from "./task";
 
 export type {
     CreateTrigger,
     TriggerTaskDefinition,
     TriggerTaskInput,
-} from "./types/trigger";
+} from "./trigger";
