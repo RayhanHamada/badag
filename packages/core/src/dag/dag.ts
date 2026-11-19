@@ -1,8 +1,6 @@
-import { sameTaskBehavior } from "../task/definition/identity";
-import { findViolations } from "./audit/audit";
-import type { DAGViolation } from "./audit/violation";
+import { sameTaskBehavior } from "../task/identity";
+import { findViolations } from "./audit";
 import { assertBranchWiring } from "./branch-routing";
-import type { DAGMetadata } from "./metadata";
 import {
     DAGTask,
     isDefinition,
@@ -13,16 +11,28 @@ import type { TaskDefinition, TaskLike, TaskOrTasks } from "./registered-task";
 import { serializeDAG } from "./serialization";
 import type { DAGJson } from "./serialization";
 import { sortTopologically } from "./topological-sort";
-import type { NextBranches } from "./typing/branches";
-import type { ParseProblem } from "./typing/problem";
-import type { NextSignatures } from "./typing/signatures";
+import type { NextBranches, ParseProblem, NextSignatures } from "./typing";
+import type { DAGViolation } from "./violation";
 import { parseWiringExpression } from "./wiring";
 import type { WiringOperand } from "./wiring";
 
 type TaskIdIndex = string;
 
-/** One validated edge step: every task on the left upstream of every task on the right. */
+/** One planned edge step: every task on the left upstream of every task on the right. */
 type EdgeStep = readonly [readonly DAGTask[], readonly DAGTask[]];
+
+/** One unresolved edge step: handles or definitions on either side. */
+type PendingStep = readonly [readonly TaskLike[], readonly TaskLike[]];
+
+/**
+ * Optional metadata attached to a DAG at construction.
+ */
+export interface DAGMetadata {
+    /**
+     * Optional human-readable description.
+     */
+    readonly description?: string;
+}
 
 /**
  * An Airflow-inspired directed acyclic graph.
@@ -110,27 +120,7 @@ export class DAG<
             return;
         }
 
-        for (const task of froms) {
-            this.#assertHandleBelongs(task);
-        }
-
-        for (const task of tos) {
-            this.#assertHandleBelongs(task);
-        }
-
-        const inserted = this.#registerDefinitions(
-            [...froms, ...tos].filter(isDefinition)
-        );
-
-        try {
-            const fromTasks = froms.map((task) => this.#lookup(task));
-            const toTasks = tos.map((task) => this.#lookup(task));
-
-            this.#addEdgeSteps([[fromTasks, toTasks]]);
-        } catch (error) {
-            this.#removeTasks(inserted);
-            throw error;
-        }
+        this.#applyBatch([...froms, ...tos], [[froms, tos]]);
     }
 
     /**
@@ -180,26 +170,7 @@ export class DAG<
             operands
         );
 
-        for (const task of tasks) {
-            this.#assertHandleBelongs(task);
-        }
-
-        const inserted = this.#registerDefinitions(tasks.filter(isDefinition));
-
-        try {
-            const groups: EdgeStep[] = steps.map(([froms, tos]) => [
-                froms.map((task) => this.#lookup(task)),
-                tos.map((task) => this.#lookup(task)),
-            ]);
-
-            // Steps are independent edges, not a sequence of wiring sets: a
-            // left-to-right expression must keep its direction, so each step
-            // is validated on its own after the whole batch is planned.
-            this.#addEdgeSteps(groups);
-        } catch (error) {
-            this.#removeTasks(inserted);
-            throw error;
-        }
+        this.#applyBatch(tasks, steps);
 
         // The overloads carry the accumulated signature and branch state; the
         // implementation only has to report the instance it mutated.
@@ -244,9 +215,44 @@ export class DAG<
      * must be JSON-serializable for that conversion.
      */
     toJSON(): DAGJson {
-        return serializeDAG(this.#dagId, this.#metadata, [
+        return serializeDAG(this.#dagId, this.#metadata.description, [
             ...this.#tasks.values(),
         ]);
+    }
+
+    /**
+     * Validate and apply one wiring batch as a transaction.
+     *
+     * Handles are checked before any definition is registered. A rejected
+     * definition, edge, or branch route rolls back the tasks this call
+     * inserted; tasks reused from earlier calls are untouched.
+     */
+    #applyBatch(
+        operands: readonly TaskLike[],
+        steps: readonly PendingStep[]
+    ): void {
+        for (const task of operands) {
+            this.#assertHandleBelongs(task);
+        }
+
+        const inserted = this.#registerDefinitions(
+            operands.filter(isDefinition)
+        );
+
+        try {
+            const groups: EdgeStep[] = steps.map(([froms, tos]) => [
+                froms.map((task) => this.#lookup(task)),
+                tos.map((task) => this.#lookup(task)),
+            ]);
+
+            // Steps are independent edges, not a sequence of wiring sets: a
+            // left-to-right expression must keep its direction, so each step
+            // is validated on its own after the whole batch is planned.
+            this.#addEdgeSteps(groups);
+        } catch (error) {
+            this.#removeTasks(inserted);
+            throw error;
+        }
     }
 
     #assertHandleBelongs(task: TaskLike): void {
@@ -337,10 +343,12 @@ export class DAG<
      *
      * Steps keep their own direction; they are not chained to each other, so
      * `[a, b]` and `[c, b]` from notation like `a >> b << c` both apply.
-     * Planning covers the whole batch before any edge is written.
+     * Planning covers the whole batch before any edge is written; `added`
+     * holds exactly the pairs that are not already present.
      */
     #addEdgeSteps(steps: readonly EdgeStep[]): void {
         const planned = new Map<DAGTask, Set<DAGTask>>();
+        const added: (readonly [DAGTask, DAGTask])[] = [];
 
         for (const [froms, tos] of steps) {
             for (const from of froms) {
@@ -349,7 +357,9 @@ export class DAG<
                         throw new Error("A task cannot depend on itself");
                     }
 
-                    if (from.downstream.has(to)) {
+                    const next = planned.get(from) ?? new Set(from.downstream);
+
+                    if (next.has(to)) {
                         continue;
                     }
 
@@ -359,9 +369,9 @@ export class DAG<
                         );
                     }
 
-                    const next = planned.get(from) ?? new Set(from.downstream);
                     next.add(to);
                     planned.set(from, next);
+                    added.push([from, to]);
                 }
             }
         }
@@ -370,17 +380,9 @@ export class DAG<
             assertBranchWiring(froms, tos, planned);
         }
 
-        for (const [froms, tos] of steps) {
-            for (const from of froms) {
-                for (const to of tos) {
-                    if (from.downstream.has(to)) {
-                        continue;
-                    }
-
-                    stateOf(from).downstream.add(to);
-                    stateOf(to).upstream.add(from);
-                }
-            }
+        for (const [from, to] of added) {
+            stateOf(from).downstream.add(to);
+            stateOf(to).upstream.add(from);
         }
     }
 

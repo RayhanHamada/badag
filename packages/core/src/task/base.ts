@@ -5,8 +5,8 @@
 
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
-import type { TaskKind } from "../kind";
-import type { TriggerRule } from "../trigger-rule";
+import type { TaskKind } from "./kind";
+import type { TriggerRule } from "./trigger-rule";
 
 /**
  * A Standard Schema accepted wherever a task declares its input or output.
@@ -112,43 +112,6 @@ export type TaskFn<
 
 /** A value that may be returned synchronously or as a promise. */
 export type MaybePromise<Value> = PromiseLike<Value> | Value;
-
-/** Whitespace trimmed from a task id by the factories. */
-type TaskIdWhitespace =
-    | " "
-    | "\n"
-    | "\t"
-    | "\r"
-    | "\f"
-    | "\v"
-    | "\u00A0"
-    | "\u1680"
-    | "\u2000"
-    | "\u2001"
-    | "\u2002"
-    | "\u2003"
-    | "\u2004"
-    | "\u2005"
-    | "\u2006"
-    | "\u2007"
-    | "\u2008"
-    | "\u2009"
-    | "\u200A"
-    | "\u2028"
-    | "\u2029"
-    | "\u202F"
-    | "\u205F"
-    | "\u3000"
-    | "\uFEFF";
-
-type TrimTaskIdEnd<Id extends string> =
-    Id extends `${infer Rest}${TaskIdWhitespace}` ? TrimTaskIdEnd<Rest> : Id;
-
-type TrimTaskIdStart<Id extends string> =
-    Id extends `${TaskIdWhitespace}${infer Rest}` ? TrimTaskIdStart<Rest> : Id;
-
-/** The task id after a factory trims surrounding whitespace. */
-export type TrimTaskId<Id extends string> = TrimTaskIdStart<TrimTaskIdEnd<Id>>;
 
 /**
  * Per-task execution settings stored on the task; the SDK never interprets them.

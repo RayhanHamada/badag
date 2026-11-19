@@ -1,5 +1,9 @@
-import { TASK_KIND_ENUM } from "../kind";
-import type { AnyTaskDefinition } from "../types/definitions";
+/**
+ * Duplicate-id behavior comparison for task definitions.
+ */
+
+import type { AnyTaskDefinition } from "./definitions";
+import { TASK_KIND_ENUM } from "./kind";
 
 /** Whether two optional branch sets declare the same names in the same order. */
 function sameBranchSet(

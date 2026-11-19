@@ -1,14 +1,14 @@
 export { createDAG, DAG } from "./dag/dag";
 
+export type { DAGMetadata } from "./dag/dag";
+
 export { crossDownstream } from "./dag/registered-task";
 
-export { DAG_VIOLATION_ENUM } from "./dag/audit/violation";
+export { DAG_VIOLATION_ENUM } from "./dag/violation";
 
-export type { DAGViolation, DAGViolationCode } from "./dag/audit/violation";
+export type { DAGViolation, DAGViolationCode } from "./dag/violation";
 
 export type { WiringOperand } from "./dag/wiring";
-
-export type { DAGMetadata } from "./dag/metadata";
 
 export {
     branch,

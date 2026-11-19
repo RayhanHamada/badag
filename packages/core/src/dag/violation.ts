@@ -1,6 +1,6 @@
 /**
- * Machine-readable categories and the finding shape returned by
- * `DAG.validate()`.
+ * Machine-readable categories, the finding shape returned by
+ * `DAG.validate()`, and the message formatting shared by findings and errors.
  */
 
 /**
@@ -51,4 +51,9 @@ export interface DAGViolation {
     readonly code: DAGViolationCode;
     readonly subjects: readonly string[];
     readonly message: string;
+}
+
+/** Render values for a message: `"us", "eu"`. */
+export function quoteValues(values: readonly string[]): string {
+    return values.map((value) => `"${value}"`).join(", ");
 }

@@ -1,12 +1,15 @@
-import type { TASK_KIND_ENUM } from "../kind";
+/**
+ * Task definitions with their literals erased for registration.
+ */
+
 import type { AnySchema, AnyTaskFn, TaskDefinitionBase, TaskFn } from "./base";
 import type { BranchTaskDefinition } from "./branch";
-import type { DAGId } from "./dag-id";
 import type { DelayTaskDefinition } from "./delay";
+import type { TASK_KIND_ENUM } from "./kind";
 import type { SensorTaskDefinition } from "./sensor";
 import type { ShortCircuitTaskDefinition } from "./short-circuit";
 import type { TaskParamOutput } from "./task";
-import type { TriggerTaskDefinition } from "./trigger";
+import type { DAGId, TriggerTaskDefinition } from "./trigger";
 
 /**
  * A sensor definition with its callback erased for registration.

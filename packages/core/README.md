@@ -13,7 +13,7 @@ An Airflow-inspired DAG builder for TypeScript. Declare tasks, wire dependencies
 | `src/dag/` | The `DAG` aggregate, registered task handles, parse-time type checks, wiring, graph audit, and serialization |
 | `src/task/` | Task kinds and their public types, one factory per kind, and the definition helpers shared by those factories |
 
-Within `dag/`, `typing/` holds only compile-time bookkeeping, `audit/` holds the read-only violation rules, and runtime modules sit at the folder root. Within `task/`, `types/` has one module per kind plus the shared base, `factories/` holds the six public factories, and `definition/` holds id validation, metadata, schema, behavior, and duration helpers.
+Within `dag/`, `typing.ts` holds only compile-time bookkeeping, `audit.ts` holds the read-only violation rules, and the aggregate, handles, wiring, and serialization modules sit at the folder root. Within `task/`, one module per kind carries that kind's public types and factory; `base.ts` holds the shared types, while `id.ts`, `definition.ts`, and `identity.ts` hold id validation, definition assembly, and duplicate-id behavior.
 
 ## Import
 

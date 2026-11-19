@@ -1,13 +1,13 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 
-import { task as createTask } from "../task/factories/task";
+import type { TaskContext, TaskFn } from "../task/base";
 import { TASK_KIND_ENUM } from "../task/kind";
+import { task as createTask } from "../task/task";
+import type { TaskParamInput, TaskParamOutput } from "../task/task";
 import { DEFAULT_TRIGGER_RULE, TRIGGER_RULE_ENUM } from "../task/trigger-rule";
-import type { TaskContext, TaskFn } from "../task/types/base";
-import type { TaskParamInput, TaskParamOutput } from "../task/types/task";
-import { DAG_VIOLATION_ENUM } from "./audit/violation";
 import { createDAG, DAG } from "./dag";
 import { crossDownstream, DAGTask } from "./registered-task";
+import { DAG_VIOLATION_ENUM } from "./violation";
 
 function namesOf(dag: DAG): string[] {
     return dag.topologicalSort().map((task) => task.id);

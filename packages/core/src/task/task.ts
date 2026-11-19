@@ -1,4 +1,8 @@
-import type { TASK_KIND_ENUM } from "../kind";
+/**
+ * Regular tasks: types and the `task()` factory.
+ */
+
+import { definedFields } from "../fields";
 import type {
     AnySchema,
     AnyTaskFn,
@@ -8,8 +12,11 @@ import type {
     TaskPayloadOf,
     TaskProducedOf,
     TaskSchemas,
-    TrimTaskId,
 } from "./base";
+import { taskMetadata, taskSchemas } from "./definition";
+import { normalizeTaskId } from "./id";
+import type { TrimTaskId } from "./id";
+import { TASK_KIND_ENUM } from "./kind";
 
 /**
  * Input to the regular task factory after the id.
@@ -61,3 +68,17 @@ export type CreateTask = <
     id: Id,
     params: TaskParamInput<Fn, Input, Output>
 ) => TaskParamOutput<TrimTaskId<Id>, Fn, Input, Output>;
+
+/**
+ * Build a regular task definition outside any DAG.
+ *
+ * Ids are trimmed and validated here, so the definition carries its final id.
+ */
+export const task: CreateTask = (id, params) =>
+    definedFields({
+        kind: TASK_KIND_ENUM.Task,
+        id: normalizeTaskId(id),
+        fn: params.fn,
+        ...taskMetadata(params),
+        ...taskSchemas(params),
+    });

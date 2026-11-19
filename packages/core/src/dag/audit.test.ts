@@ -1,16 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { branch } from "../../task/factories/branch";
-import { delay } from "../../task/factories/delay";
-import { sensor } from "../../task/factories/sensor";
-import { shortCircuit } from "../../task/factories/short-circuit";
-import { task as createTask } from "../../task/factories/task";
-import { trigger } from "../../task/factories/trigger";
-import { createDAG } from "../dag";
-import type { DAG } from "../dag";
-import { stateOf } from "../registered-task";
-import type { DAGTask, TaskDefinition } from "../registered-task";
+import { branch } from "../task/branch";
+import { delay } from "../task/delay";
+import { sensor } from "../task/sensor";
+import { shortCircuit } from "../task/short-circuit";
+import { task as createTask } from "../task/task";
+import { trigger } from "../task/trigger";
 import { findViolations } from "./audit";
+import { createDAG } from "./dag";
+import type { DAG } from "./dag";
+import { stateOf } from "./registered-task";
+import type { DAGTask, TaskDefinition } from "./registered-task";
 import { DAG_VIOLATION_ENUM } from "./violation";
 import type { DAGViolation, DAGViolationCode } from "./violation";
 

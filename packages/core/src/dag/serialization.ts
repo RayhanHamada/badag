@@ -2,11 +2,11 @@
  * Serialized DAG and task snapshots returned by `DAG.toJSON()`.
  */
 
+import { definedFields } from "../fields";
+import type { TaskConfig } from "../task/base";
 import { TASK_KIND_ENUM } from "../task/kind";
 import type { TaskKind } from "../task/kind";
 import type { TriggerRule } from "../task/trigger-rule";
-import type { TaskConfig } from "../task/types/base";
-import type { DAGMetadata } from "./metadata";
 import type { DAGTask } from "./registered-task";
 
 /**
@@ -119,30 +119,14 @@ export interface DAGJson {
 
 /** Common serialized fields, omitting absent optional metadata. */
 function taskJsonBase(task: DAGTask): Omit<TaskJsonBase<TaskKind>, "kind"> {
-    const base = {
+    return definedFields({
         id: task.id,
         triggerRule: task.triggerRule,
-        upstream: [...task.upstream].map((upstream) => upstream.id),
-        downstream: [...task.downstream].map((downstream) => downstream.id),
-    };
-
-    if (task.description === undefined && task.config === undefined) {
-        return base;
-    }
-
-    if (task.description === undefined) {
-        return { ...base, config: task.config };
-    }
-
-    if (task.config === undefined) {
-        return { ...base, description: task.description };
-    }
-
-    return {
-        ...base,
         description: task.description,
         config: task.config,
-    };
+        upstream: [...task.upstream].map((upstream) => upstream.id),
+        downstream: [...task.downstream].map((downstream) => downstream.id),
+    });
 }
 
 /**
@@ -157,14 +141,11 @@ export function serializeTask(task: DAGTask): TaskJson {
 
     switch (definition.kind) {
         case TASK_KIND_ENUM.Sensor: {
-            const sensor = {
+            return definedFields({
                 ...base,
                 kind: TASK_KIND_ENUM.Sensor,
-            };
-
-            return definition.pokeIntervalMs === undefined
-                ? sensor
-                : { ...sensor, pokeIntervalMs: definition.pokeIntervalMs };
+                pokeIntervalMs: definition.pokeIntervalMs,
+            });
         }
 
         case TASK_KIND_ENUM.Delay: {
@@ -209,18 +190,12 @@ export function serializeTask(task: DAGTask): TaskJson {
  */
 export function serializeDAG(
     dagId: string,
-    metadata: DAGMetadata,
+    description: string | undefined,
     tasks: readonly DAGTask[]
 ): DAGJson {
-    const serializedTasks = tasks.map((task) => serializeTask(task));
-
-    if (metadata.description === undefined) {
-        return { dagId, tasks: serializedTasks };
-    }
-
-    return {
+    return definedFields({
         dagId,
-        description: metadata.description,
-        tasks: serializedTasks,
-    };
+        description,
+        tasks: tasks.map((task) => serializeTask(task)),
+    });
 }

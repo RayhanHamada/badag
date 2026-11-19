@@ -1,4 +1,8 @@
-import type { TASK_KIND_ENUM } from "../kind";
+/**
+ * Short-circuit tasks: types and the `shortCircuit()` factory.
+ */
+
+import { definedFields } from "../fields";
 import type {
     AnySchema,
     MaybePromise,
@@ -8,8 +12,11 @@ import type {
     TaskMetadata,
     TaskPayloadOf,
     TaskSchemas,
-    TrimTaskId,
 } from "./base";
+import { taskMetadata, taskSchemas } from "./definition";
+import { normalizeTaskId } from "./id";
+import type { TrimTaskId } from "./id";
+import { TASK_KIND_ENUM } from "./kind";
 
 /**
  * Condition evaluated by a short-circuit task.
@@ -67,3 +74,27 @@ export type CreateShortCircuit = <
     id: Id,
     input: ShortCircuitTaskInput<TrimTaskId<Id>, Input, Output>
 ) => ShortCircuitTaskDefinition<TrimTaskId<Id>, Input, Output>;
+
+/**
+ * Build a short-circuit task definition.
+ *
+ * `condition` is stored on the definition and invoked by the task callback
+ * with the task context. The returned boolean tells the scheduler whether
+ * downstream tasks should run; the SDK itself does not prune edges.
+ */
+export function shortCircuit<
+    const Id extends string,
+    Input extends AnySchema = undefined,
+    Output extends AnySchema = SchemaOf<boolean>,
+>(
+    id: Id,
+    input: ShortCircuitTaskInput<TrimTaskId<Id>, Input, Output>
+): ShortCircuitTaskDefinition<TrimTaskId<Id>, Input, Output> {
+    return definedFields({
+        kind: TASK_KIND_ENUM.ShortCircuit,
+        id: normalizeTaskId(id),
+        condition: input.condition,
+        ...taskMetadata(input),
+        ...taskSchemas(input),
+    });
+}

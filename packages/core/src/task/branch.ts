@@ -1,4 +1,8 @@
-import type { TASK_KIND_ENUM } from "../kind";
+/**
+ * Branch tasks: types and the `branch()` factory.
+ */
+
+import { definedFields } from "../fields";
 import type {
     AnySchema,
     MaybePromise,
@@ -8,8 +12,11 @@ import type {
     TaskMetadata,
     TaskPayloadOf,
     TaskSchemas,
-    TrimTaskId,
 } from "./base";
+import { taskMetadata, taskSchemas } from "./definition";
+import { normalizeTaskId } from "./id";
+import type { TrimTaskId } from "./id";
+import { TASK_KIND_ENUM } from "./kind";
 
 /**
  * A branch name, or a set of branch names.
@@ -82,3 +89,29 @@ export type CreateBranch = <
     id: Id,
     input: BranchTaskInput<TrimTaskId<Id>, Branches, Input, Output>
 ) => BranchTaskDefinition<TrimTaskId<Id>, Branches, Input, Output>;
+
+/**
+ * Build a branch task definition.
+ *
+ * `choose` is stored on the definition and invoked by the task callback with
+ * the task context. The returned branch name or names tell the scheduler which
+ * downstream task(s) to run; the SDK itself does not prune edges.
+ */
+export function branch<
+    const Id extends string,
+    const Branches extends readonly string[] = readonly string[],
+    Input extends AnySchema = undefined,
+    Output extends AnySchema = SchemaOf<BranchChoice<Branches[number]>>,
+>(
+    id: Id,
+    input: BranchTaskInput<TrimTaskId<Id>, Branches, Input, Output>
+): BranchTaskDefinition<TrimTaskId<Id>, Branches, Input, Output> {
+    return definedFields({
+        kind: TASK_KIND_ENUM.Branch,
+        id: normalizeTaskId(id),
+        choose: input.choose,
+        ...taskMetadata(input),
+        ...taskSchemas(input),
+        branches: input.branches,
+    });
+}
