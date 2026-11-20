@@ -16,7 +16,7 @@ export type JsonValue =
     | boolean
     | null
     | JsonObject
-    | JsonValue[];
+    | readonly JsonValue[];
 
 /** A JSON object a node config may contain. */
 export interface JsonObject {
@@ -88,12 +88,16 @@ export interface GraphSpec {
 // functions, and undefined are rejected.
 // oxlint-disable anti-slop/no-runtime-typeof
 // oxlint-disable eslint/no-use-before-define -- freezeValue and freezeRecord are mutually recursive.
+function isJsonArray(value: JsonValue): value is readonly JsonValue[] {
+    return Array.isArray(value);
+}
+
 function freezeValue(value: JsonValue): JsonValue {
     if (value === null) {
         return null;
     }
 
-    if (Array.isArray(value)) {
+    if (isJsonArray(value)) {
         return Object.freeze(value.map((entry) => freezeValue(entry)));
     }
 

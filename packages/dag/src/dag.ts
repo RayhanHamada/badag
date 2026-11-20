@@ -122,6 +122,11 @@ export class DAG<Key extends string = string> {
         return this.#implementations.get(key);
     }
 
+    /** Whether a node key is registered. */
+    has(key: string): boolean {
+        return this.#graph.has(key);
+    }
+
     /** Registered nodes in insertion order, keyed by node key. */
     nodes(): ReadonlyMap<string, GraphNode> {
         return this.#graph.nodes();

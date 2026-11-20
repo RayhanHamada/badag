@@ -8,6 +8,8 @@ export type { GraphChange } from "./graph";
 
 export { orderSpec } from "./order";
 
+export { canonicalStringify } from "./revision";
+
 export { SPEC_VERSION, freezeConfig } from "./spec";
 
 export type {
