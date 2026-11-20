@@ -95,6 +95,13 @@
         "drizzle-orm": "^0.45.4",
       },
     },
+    "packages/graph": {
+      "name": "@badag/graph",
+      "devDependencies": {
+        "typescript": "7.1.0-beta",
+        "vitest": "^5.0.5",
+      },
+    },
     "packages/sdk": {
       "name": "@badag/sdk",
       "version": "0.0.0",
@@ -175,6 +182,8 @@
     "@badag/dashboard": ["@badag/dashboard@workspace:apps/dashboard"],
 
     "@badag/db-schema": ["@badag/db-schema@workspace:packages/db-schema"],
+
+    "@badag/graph": ["@badag/graph@workspace:packages/graph"],
 
     "@badag/sdk": ["@badag/sdk@workspace:packages/sdk"],
 
