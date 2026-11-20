@@ -45,6 +45,10 @@ Policy is evaluated over the outcomes of route-active incoming edges once they a
 
 `events` contains `started`, `succeeded`, `failed`, and `skipped` records in resolution order; values live only in `outcomes`. Running the same spec with the same implementations produces the same events and outcomes.
 
+## Retries
+
+`config.retries` is a non-negative integer, default `0`. A failed attempt is retried in place, sequentially; each attempt emits its own `started` and `failed` events. The final outcome carries the attempt number that succeeded or the last attempt that failed. A retry is a new attempt, not a new status.
+
 ## Failure modes
 
 - A structurally invalid spec (unknown endpoint, self edge, duplicate node, cycle) throws before anything runs.
@@ -53,4 +57,4 @@ Policy is evaluated over the outcomes of route-active incoming edges once they a
 
 ## Not here
 
-Payloads are `undefined` in this pass — cross-node data flow is deferred. No retries, persistence, cancellation, or durable scheduling; those belong to the hosted runtime.
+Payloads are `undefined` in this pass — cross-node data flow is deferred. No persistence, cancellation, or durable scheduling; those belong to the hosted runtime.

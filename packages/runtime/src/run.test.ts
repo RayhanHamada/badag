@@ -235,6 +235,57 @@ describe("executor", () => {
         expect(result.outcomes.get("route")?.error).toContain("nowhere");
     });
 
+    it("retries a failing node and reports the successful attempt", async () => {
+        const spec = build([task("flaky", { retries: 2 })]);
+
+        let calls = 0;
+
+        const result = await run({
+            spec,
+            implementations: code({
+                flaky: () => {
+                    calls += 1;
+
+                    if (calls < 2) {
+                        throw new Error("again");
+                    }
+
+                    return "ok";
+                },
+            }),
+        });
+
+        expect(result.outcomes.get("flaky")).toMatchObject({
+            status: "succeeded",
+            attempt: 2,
+        });
+        expect(calls).toBe(2);
+        expect(
+            result.events.filter(
+                (event) => event.key === "flaky" && event.type === "started"
+            )
+        ).toHaveLength(2);
+    });
+
+    it("fails after exhausting retries", async () => {
+        const spec = build([task("doomed", { retries: 1 })]);
+
+        const result = await run({
+            spec,
+            implementations: code({
+                doomed: () => {
+                    throw new Error("always");
+                },
+            }),
+        });
+
+        expect(result.outcomes.get("doomed")).toMatchObject({
+            status: "failed",
+            attempt: 2,
+            error: "always",
+        });
+    });
+
     it("awaits waiter implementations", async () => {
         const spec = build([task("wait", { role: "waiter" })]);
 

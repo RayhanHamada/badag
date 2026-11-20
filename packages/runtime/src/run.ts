@@ -45,7 +45,11 @@ type Decision =
     | { readonly type: "pending" }
     | { readonly type: "skip"; readonly reason: string }
     | { readonly type: "fail"; readonly error: string }
-    | { readonly type: "run"; readonly role: string };
+    | {
+          readonly type: "run";
+          readonly role: string;
+          readonly retries: number;
+      };
 
 const NO_EDGES: readonly InEdge[] = [];
 
@@ -145,6 +149,23 @@ function roleOf(config: JsonObject): string {
     );
 }
 
+function retriesOf(config: JsonObject): number {
+    const stored = config.retries;
+
+    if (stored === undefined) {
+        return 0;
+    }
+
+    // oxlint-disable-next-line anti-slop/no-runtime-typeof -- config is open JSON.
+    if (typeof stored !== "number" || !Number.isInteger(stored) || stored < 0) {
+        throw new Error(
+            `Invalid retries ${show(stored)}; expected a non-negative integer`
+        );
+    }
+
+    return stored;
+}
+
 function resolve(state: State, outcome: NodeRun): void {
     state.outcomes.set(outcome.key, outcome);
 
@@ -230,7 +251,11 @@ function decide(state: State, key: string): Decision {
     }
 
     try {
-        return { type: "run", role: roleOf(node.config) };
+        return {
+            type: "run",
+            role: roleOf(node.config),
+            retries: retriesOf(node.config),
+        };
     } catch (error) {
         return { type: "fail", error: messageOf(error) };
     }
@@ -262,13 +287,17 @@ function applySelection(
     }
 }
 
-async function execute(state: State, key: string, role: string): Promise<void> {
-    state.events.push({ type: "started", key, attempt: 1 });
-
+async function execute(
+    state: State,
+    key: string,
+    role: string,
+    retries: number
+): Promise<void> {
     const implementation: AnyImplementation | undefined =
         state.implementations.get(key);
 
     if (implementation === undefined) {
+        state.events.push({ type: "started", key, attempt: 1 });
         resolve(state, {
             key,
             status: "failed",
@@ -279,30 +308,56 @@ async function execute(state: State, key: string, role: string): Promise<void> {
         return;
     }
 
-    try {
-        const value = await implementation.run({ key, payload: undefined });
+    const attempts = retries + 1;
 
-        if (role === "router") {
-            applySelection(state, key, selectionOf(key, value));
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+        state.events.push({ type: "started", key, attempt });
+
+        try {
+            // Retries are sequential by definition, so the await stays here.
+            // oxlint-disable-next-line eslint/no-await-in-loop
+            const value = await implementation.run({ key, payload: undefined });
+
+            if (role === "router") {
+                applySelection(state, key, selectionOf(key, value));
+            }
+
+            state.outcomes.set(key, {
+                key,
+                status: "succeeded",
+                attempt,
+                value,
+            });
+            state.events.push({ type: "succeeded", key, attempt });
+
+            return;
+        } catch (error) {
+            const message = messageOf(error);
+
+            if (attempt === attempts) {
+                state.outcomes.set(key, {
+                    key,
+                    status: "failed",
+                    attempt,
+                    error: message,
+                });
+                state.events.push({
+                    type: "failed",
+                    key,
+                    attempt,
+                    error: message,
+                });
+
+                return;
+            }
+
+            state.events.push({
+                type: "failed",
+                key,
+                attempt,
+                error: message,
+            });
         }
-
-        state.outcomes.set(key, {
-            key,
-            status: "succeeded",
-            attempt: 1,
-            value,
-        });
-        state.events.push({ type: "succeeded", key, attempt: 1 });
-    } catch (error) {
-        const message = messageOf(error);
-
-        state.outcomes.set(key, {
-            key,
-            status: "failed",
-            attempt: 1,
-            error: message,
-        });
-        state.events.push({ type: "failed", key, attempt: 1, error: message });
     }
 }
 
@@ -367,7 +422,7 @@ export async function run(input: RunInput): Promise<RunResult> {
                 // Execution is sequential by design: a deterministic event log
                 // is worth more than concurrency in the in-memory executor.
                 // oxlint-disable-next-line eslint/no-await-in-loop
-                await execute(state, key, decision.role);
+                await execute(state, key, decision.role, decision.retries);
             }
 
             progressed = true;
