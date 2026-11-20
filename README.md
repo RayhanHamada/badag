@@ -7,7 +7,7 @@
 
 <p align="center">
   <strong>Strongly-typed DAGs.</strong><br />
-  Author with Airflow's vocabulary, compile to a versioned spec, run it.
+  Author with a dialect, compile to a versioned spec, run it.
 </p>
 
 <p align="center">
@@ -16,9 +16,9 @@
   <img alt="MIT license" src="https://img.shields.io/badge/MIT-license-blue" />
 </p>
 
-Badag is a TypeScript SDK for task graphs. You declare nodes and wiring with an Airflow-flavored dialect, get a frozen JSON spec plus a registry of implementations, and hand both to a runtime. Execution state belongs to a separate runtime.
+Badag is a TypeScript SDK for task graphs. Dialects supply the authoring vocabulary — the first is Airflow-inspired — and compile to one frozen JSON spec plus a registry of implementations, which you hand to a runtime. Execution state belongs to a separate runtime.
 
-> **The graph is data. Code is keyed by node.**
+> **The graph is data. Code is keyed by node. Dialects compile to the same graph.**
 
 ## Install
 
@@ -30,7 +30,7 @@ ESM-only, ships declaration files, and bundles the graph, DAG, Airflow, and runt
 
 ## A graph in 30 seconds
 
-A daily pricing job: wait for the vendor drop, extract prices, route by region, publish after the selected region finishes.
+Using the Airflow dialect, a daily pricing job: wait for the vendor drop, extract prices, route by region, publish after the selected region finishes.
 
 ```mermaid
 graph LR
@@ -85,6 +85,12 @@ result.outcomes.get("publish")?.status; // "succeeded"
 
 The node key is the only join. A spec loaded from storage and a DAG built in memory cross the same seams: `check(spec)`, `orderSpec(spec)`, `run({ spec, implementations })`.
 
+## Dialects
+
+`@badag/airflow` is the first dialect, and the only one that ships today. It supplies the presets, `>>` / `<<` notation, Airflow key convention, and dialect findings documented below.
+
+The graph and task layers contain no Airflow vocabulary: `@badag/graph` owns the spec and structural checks, and `@badag/dag` keys implementations by node. `@badag/runtime` switches on `config.role` rather than node type; its activation-policy names borrow Airflow's trigger-rule vocabulary, but the contract is shared. A future dialect — not yet built — can add its own presets, notation, and checks, then compile to the same `GraphSpec` v1. As long as it writes the runtime's `role`, `triggerRule`, and `retries` config keys, it reuses the same implementations and runtime.
+
 ## Wiring
 
 ```ts
@@ -130,13 +136,13 @@ Retries are per node: `config.retries` is a non-negative integer, default `0`. A
 
 | Package | Responsibility |
 | --- | --- |
-| `@badag/graph` | nodes, labeled edges, order, cycles, structural findings, the spec |
+| `@badag/graph` | dialect-agnostic nodes, labeled edges, order, cycles, structural findings, the spec |
 | `@badag/dag` | node = key + type + config, implementation registry, `build()` |
-| `@badag/airflow` | six presets, trigger-rule names, `>>` / `<<`, key convention, dialect findings |
+| `@badag/airflow` | first dialect: six presets, trigger-rule names, `>>` / `<<`, key convention, dialect findings |
 | `@badag/runtime` | in-memory execution, route propagation, activation policies, retries |
 | `@badag/db-schema` | Drizzle schemas: revision-scoped graphs and runs (`main-db`), task executions (`orchestrator-db`) |
-| `@badag/sdk` | the published entry point; bundles `@badag/graph`, `@badag/dag`, `@badag/airflow`, and `@badag/runtime` |
+| `@badag/sdk` | the published entry point for the Airflow dialect; bundles `@badag/graph`, `@badag/dag`, `@badag/airflow`, and `@badag/runtime` |
 
 ## Status
 
-Pre-release (`0.0.0`). The SDK is the only published package; the others are source-only workspace packages. `@badag/db-schema` stores revision-scoped graphs: immutable revisions own the serialized spec, node rows, and labeled edges; runs reference a revision; task executions live in a second database. The SDK runtime is in-memory and writes none of it.
+Pre-release (`0.0.0`). The SDK is the only published package; the others are source-only workspace packages. Airflow is the only dialect today; `@badag/graph` and `@badag/dag` carry no Airflow vocabulary, and `@badag/runtime` depends on only the `role`, `triggerRule`, and `retries` config contract, so future dialects can compile to the same spec. `@badag/db-schema` stores revision-scoped graphs: immutable revisions own the serialized spec, node rows, and labeled edges; runs reference a revision; task executions live in a second database. The SDK runtime is in-memory and writes none of it.

@@ -1,6 +1,8 @@
 # @badag/sdk
 
-The published entry point. It re-exports the Airflow authoring dialect, the task layer, the graph spec types and findings, and the in-memory runtime, so one install covers authoring through execution.
+The published entry point for the Airflow dialect and the shared graph/runtime stack. It re-exports the Airflow authoring surface, the task layer, the graph spec types and findings, and the in-memory runtime, so one install covers authoring through execution.
+
+Airflow is the first dialect; the graph spec, implementation registry, and runtime are dialect-agnostic. A future dialect can ship its own authoring surface and compile to `GraphSpec` v1. No second dialect exists yet.
 
 The graph, DAG, Airflow, and runtime packages are source-only and are bundled into this package at build time; none of them is a runtime dependency of the published artifact.
 
@@ -28,7 +30,7 @@ ESM-only, ships declaration files, includes `@standard-schema/spec` for schema t
 
 | Export | From | Summary |
 | --- | --- | --- |
-| `AirflowDAG`, `createDAG`, `task`, `branch`, `sensor`, `delay`, `shortCircuit`, `trigger` | `@badag/airflow` | Airflow authoring dialect |
+| `AirflowDAG`, `createDAG`, `task`, `branch`, `sensor`, `delay`, `shortCircuit`, `trigger` | `@badag/airflow` | First dialect: authoring surface |
 | `labeled`, `TRIGGER_RULE_ENUM`, `DEFAULT_TRIGGER_RULE`, `AIRFLOW_FINDING_CODE`, `isAirflowKey`, `check`, `checkAirflow` | `@badag/airflow` | Routing overrides, policies, key convention, findings |
 | `defineNode` | `@badag/dag` | A node with typed schemas and an optional implementation |
 | `checkSpec`, `GRAPH_FINDING_CODE`, `canonicalStringify` | `@badag/graph` | Structural findings and canonical JSON |
