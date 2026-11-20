@@ -286,6 +286,32 @@ describe("executor", () => {
         });
     });
 
+    it("does not apply a partial router selection", async () => {
+        const spec = build(
+            [
+                task("route", { role: "router" }),
+                task("us", { triggerRule: "all_done" }),
+                task("eu"),
+            ],
+            [
+                { from: "route", to: "us", label: "us" },
+                { from: "route", to: "eu", label: "eu" },
+            ]
+        );
+
+        const result = await run({
+            spec,
+            implementations: code({
+                route: () => ["us", "nowhere"],
+                us: () => "ran",
+                eu: () => "ran",
+            }),
+        });
+
+        expect(result.outcomes.get("route")?.status).toBe("failed");
+        expect(result.outcomes.get("us")?.status).toBe("skipped");
+    });
+
     it("awaits waiter implementations", async () => {
         const spec = build([task("wait", { role: "waiter" })]);
 

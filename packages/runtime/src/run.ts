@@ -267,16 +267,20 @@ function applySelection(
     selection: readonly string[]
 ): void {
     const labels = state.prepared.outLabels.get(key);
+    const activate: string[] = [];
+    const target: string[] = [];
 
+    // Resolve the whole selection before writing anything: a bad entry must
+    // not leave half a route active for the next attempt or the next node.
     for (const selected of selection) {
         if (labels?.has(selected) === true) {
-            state.activeLabels.add(selected);
+            activate.push(selected);
 
             continue;
         }
 
         if (state.prepared.nodes.has(selected)) {
-            state.targets.add(selected);
+            target.push(selected);
 
             continue;
         }
@@ -284,6 +288,14 @@ function applySelection(
         throw new Error(
             `Router "${key}" selected "${selected}", which is neither an outgoing label nor a node key`
         );
+    }
+
+    for (const label of activate) {
+        state.activeLabels.add(label);
+    }
+
+    for (const nodeKey of target) {
+        state.targets.add(nodeKey);
     }
 }
 
