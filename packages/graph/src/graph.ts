@@ -244,13 +244,13 @@ export class Graph {
         const nodes = [...this.#nodes.values()];
         const edges = [...this.#edges];
 
-        return {
+        return Object.freeze({
             specVersion: SPEC_VERSION,
             key: this.#key,
             revision: revisionOf(this.#key, nodes, edges),
-            nodes,
-            edges,
-        };
+            nodes: Object.freeze(nodes),
+            edges: Object.freeze(edges),
+        });
     }
 
     #neighbors(

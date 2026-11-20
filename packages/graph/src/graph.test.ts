@@ -240,6 +240,14 @@ describe("graph builder", () => {
         expect(spec.edges).not.toBe(graph.edges());
     });
 
+    it("freezes the spec and its arrays", () => {
+        const spec = complexGraph().spec();
+
+        expect(Object.isFrozen(spec)).toBeTruthy();
+        expect(Object.isFrozen(spec.nodes)).toBeTruthy();
+        expect(Object.isFrozen(spec.edges)).toBeTruthy();
+    });
+
     it("reports no findings for a valid graph", () => {
         expect(complexGraph().check()).toStrictEqual([]);
     });

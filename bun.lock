@@ -89,6 +89,17 @@
         "zod": "^4.6.7",
       },
     },
+    "packages/dag": {
+      "name": "@badag/dag",
+      "dependencies": {
+        "@badag/graph": "workspace:*",
+        "@standard-schema/spec": "^1.1.0",
+      },
+      "devDependencies": {
+        "typescript": "7.1.0-beta",
+        "vitest": "^5.0.5",
+      },
+    },
     "packages/db-schema": {
       "name": "@badag/db-schema",
       "peerDependencies": {
@@ -178,6 +189,8 @@
     "@babel/types": ["@babel/types@7.29.11", "", { "dependencies": { "@babel/helper-string-parser": "^7.29.11", "@babel/helper-validator-identifier": "^7.29.7" } }, "sha512-WCsemW40Cpc6gouC1SrY6PBaZ+oLRlEVY9XBvZBI7il/HyUrb2nJ505wE1MHEFyDZNnrWDEuy4jL50WVHfTTSQ=="],
 
     "@badag/core": ["@badag/core@workspace:packages/core"],
+
+    "@badag/dag": ["@badag/dag@workspace:packages/dag"],
 
     "@badag/dashboard": ["@badag/dashboard@workspace:apps/dashboard"],
 
