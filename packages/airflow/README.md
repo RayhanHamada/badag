@@ -29,6 +29,8 @@ import {
 
 Every preset accepts `description`, `config`, and `triggerRule`. `task` also accepts `input` and `output`; `branch`, `sensor`, `shortCircuit`, and `trigger` accept `input`; `delay` declares neither schema. `triggerRule` is stored only when supplied; the runtime defaults to `all_success`.
 
+Each preset returns its own config type (`TaskConfig`, `BranchConfig`, `SensorConfig`, `DelayConfig`, `ShortCircuitConfig`, `TriggerConfig`), so `node.config` exposes the keys that preset writes.
+
 `delay` and `trigger` may omit code: the wait and the launch belong to the runtime. A declaration without an implementation still enters the spec.
 
 ## Wiring

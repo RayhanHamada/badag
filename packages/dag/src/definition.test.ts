@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 
 import { defineNode } from "./definition";
 import { schema } from "./test-schema";
@@ -25,6 +25,16 @@ describe("node definitions", () => {
         }
 
         expect(implementation.run).toBe(run);
+    });
+
+    it("keeps the declared config shape in the type", () => {
+        const node = defineNode({
+            key: "extract",
+            type: "task",
+            config: { retries: 2 },
+        });
+
+        expectTypeOf(node.config).toEqualTypeOf<{ retries: number }>();
     });
 
     it("declares a node without code", () => {

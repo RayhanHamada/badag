@@ -2,7 +2,16 @@ import type { Implementation, MaybePromise, NodeContext } from "@badag/dag";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import { describe, expect, expectTypeOf, it } from "vitest";
 
+import { createDAG } from "./dag";
 import { branch, delay, sensor, shortCircuit, task, trigger } from "./presets";
+import type {
+    BranchConfig,
+    DelayConfig,
+    SensorConfig,
+    ShortCircuitConfig,
+    TaskConfig,
+    TriggerConfig,
+} from "./presets";
 import { TRIGGER_RULE_ENUM } from "./trigger-rule";
 
 function schema<Value>(): StandardSchemaV1<Value, Value> {
@@ -137,6 +146,63 @@ describe("presets", () => {
             sensor("s", { predicate: () => true, pokeIntervalMs: 0 })
         ).toThrow(/greater than 0/u);
         expect(() => trigger("t", { dagId: "bad id" })).toThrow(/DAG id/u);
+    });
+
+    it("types the config of each preset", () => {
+        const taskNode = task("extract", { run: () => 1 });
+        expectTypeOf(taskNode.config).toEqualTypeOf<TaskConfig>();
+        expectTypeOf(taskNode.config.role).toEqualTypeOf<"compute">();
+        expectTypeOf(taskNode.config.retries).toEqualTypeOf<
+            number | undefined
+        >();
+        // @ts-expect-error a task config has no dagId
+        expect(taskNode.config.dagId).toBeUndefined();
+
+        const branchNode = branch("route", {
+            branches: ["us", "eu"] as const,
+            choose: () => "us",
+        });
+
+        expectTypeOf(branchNode.config).toEqualTypeOf<BranchConfig>();
+        expectTypeOf(branchNode.config.role).toEqualTypeOf<"router">();
+        expectTypeOf(branchNode.config.branches).toEqualTypeOf<
+            readonly string[] | undefined
+        >();
+
+        const sensorNode = sensor("wait", { predicate: () => true });
+        expectTypeOf(sensorNode.config).toEqualTypeOf<SensorConfig>();
+        expectTypeOf(sensorNode.config.pokeIntervalMs).toEqualTypeOf<
+            number | undefined
+        >();
+
+        const delayNode = delay("settle", { durationMs: 500 });
+        expectTypeOf(delayNode.config).toEqualTypeOf<DelayConfig>();
+        expectTypeOf(delayNode.config.durationMs).toEqualTypeOf<number>();
+
+        const shortCircuitNode = shortCircuit("gate", {
+            condition: () => true,
+        });
+
+        expectTypeOf(
+            shortCircuitNode.config
+        ).toEqualTypeOf<ShortCircuitConfig>();
+        expectTypeOf(shortCircuitNode.config.branches).toEqualTypeOf<
+            readonly ["run", "skip"]
+        >();
+
+        const triggerNode = trigger("launch", { dagId: "nightly" });
+        expectTypeOf(triggerNode.config).toEqualTypeOf<TriggerConfig>();
+        expectTypeOf(triggerNode.config.dagId).toEqualTypeOf<string>();
+        expectTypeOf(
+            triggerNode.config.waitForCompletion
+        ).toEqualTypeOf<boolean>();
+    });
+
+    it("registers a typed preset in a DAG", () => {
+        const extract = task("extract", { run: () => 1 });
+        const dag = createDAG("etl").parse`${extract}`;
+
+        expect(dag.has("extract")).toBeTruthy();
     });
 
     it("types the task payload from its input schema", () => {

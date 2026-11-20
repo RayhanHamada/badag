@@ -28,15 +28,22 @@ export { branch, delay, sensor, shortCircuit, task, trigger } from "./presets";
 export type {
     BranchChoice,
     BranchChooser,
+    BranchConfig,
     BranchOptions,
+    DelayConfig,
     DelayOptions,
     NodeOptions,
     NodeRole,
+    PresetConfig,
+    SensorConfig,
     SensorOptions,
     SensorPredicate,
     ShortCircuitCondition,
+    ShortCircuitConfig,
     ShortCircuitOptions,
+    TaskConfig,
     TaskOptions,
+    TriggerConfig,
     TriggerOptions,
 } from "./presets";
 

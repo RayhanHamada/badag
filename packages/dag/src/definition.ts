@@ -24,6 +24,7 @@ export interface NodeDefinitionInput<
     Type extends string = string,
     Input extends AnySchema = AnySchema,
     Output extends AnySchema = AnySchema,
+    Config extends JsonObject = JsonObject,
 > {
     /**
      * Declared identifier, unique within the DAG.
@@ -36,7 +37,7 @@ export interface NodeDefinitionInput<
     /**
      * Open JSON config; the graph layer never interprets it.
      */
-    readonly config?: JsonObject;
+    readonly config?: Config;
     /**
      * Schema for the value delivered in `ctx.payload`.
      */
@@ -60,10 +61,11 @@ export interface NodeDefinition<
     Type extends string = string,
     Input extends AnySchema = AnySchema,
     Output extends AnySchema = AnySchema,
+    Config extends JsonObject = JsonObject,
 > {
     readonly key: Key;
     readonly type: Type;
-    readonly config: JsonObject;
+    readonly config: Config;
     /**
      * `undefined` when the node was declared without code.
      */
@@ -89,9 +91,10 @@ export function defineNode<
     const Type extends string,
     Input extends AnySchema = undefined,
     Output extends AnySchema = undefined,
+    Config extends JsonObject = JsonObject,
 >(
-    input: NodeDefinitionInput<Key, Type, Input, Output>
-): NodeDefinition<Key, Type, Input, Output> {
+    input: NodeDefinitionInput<Key, Type, Input, Output, Config>
+): NodeDefinition<Key, Type, Input, Output, Config> {
     if (input.key.trim() === "") {
         throw new Error("Node key cannot be empty");
     }

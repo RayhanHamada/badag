@@ -139,6 +139,10 @@ function freezeRecord(record: JsonObject): JsonObject {
  * A caller keeps no shared reference into an stored spec, and a non-JSON value
  * is rejected here instead of silently canonicalizing to `null`.
  */
-export function freezeConfig(config?: JsonObject): JsonObject {
-    return freezeRecord(config ?? {});
+export function freezeConfig<Config extends JsonObject = JsonObject>(
+    config?: Config
+): Config {
+    // SAFETY: freezeRecord preserves every entry of the input, and the return
+    // type only names the shape the caller already supplied.
+    return freezeRecord(config ?? {}) as Config;
 }

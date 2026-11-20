@@ -23,6 +23,50 @@ import type { TriggerRule } from "./trigger-rule";
 /** What a node contributes at execution. */
 export type NodeRole = "compute" | "router" | "waiter";
 
+/** Config keys every preset writes, plus its preset-specific keys. */
+export type PresetConfig<
+    Role extends NodeRole,
+    Extra extends JsonObject = Record<never, never>,
+> = {
+    readonly role: Role;
+    readonly description?: string;
+    readonly triggerRule?: TriggerRule;
+    readonly retries?: number;
+} & Extra;
+
+/** Config produced by a `task` preset. */
+export type TaskConfig = PresetConfig<"compute">;
+
+/** Config produced by a `branch` preset. */
+export type BranchConfig = PresetConfig<
+    "router",
+    { readonly branches?: readonly string[] }
+>;
+
+/** Config produced by a `sensor` preset. */
+export type SensorConfig = PresetConfig<
+    "waiter",
+    { readonly pokeIntervalMs?: number }
+>;
+
+/** Config produced by a `delay` preset. */
+export type DelayConfig = PresetConfig<
+    "waiter",
+    { readonly durationMs: number }
+>;
+
+/** Config produced by a `shortCircuit` preset. */
+export type ShortCircuitConfig = PresetConfig<
+    "router",
+    { readonly branches: readonly ["run", "skip"] }
+>;
+
+/** Config produced by a `trigger` preset. */
+export type TriggerConfig = PresetConfig<
+    "compute",
+    { readonly dagId: string; readonly waitForCompletion: boolean }
+>;
+
 /** Metadata every preset accepts. */
 export interface NodeOptions<
     Input extends AnySchema = AnySchema,
@@ -33,7 +77,8 @@ export interface NodeOptions<
      */
     readonly description?: string;
     /**
-     * Additional JSON config, stored as-is.
+     * Additional JSON config, stored as-is. Keys outside the preset's config
+     * type are not reflected in `node.config`.
      */
     readonly config?: JsonObject;
     /**
@@ -56,11 +101,10 @@ interface ConfigSource {
     readonly triggerRule?: TriggerRule;
 }
 
-function nodeConfig(
-    role: NodeRole,
-    options: ConfigSource,
-    extra?: JsonObject
-): JsonObject {
+function nodeConfig<
+    const Role extends NodeRole,
+    const Extra extends JsonObject = Record<never, never>,
+>(role: Role, options: ConfigSource, extra?: Extra): PresetConfig<Role, Extra> {
     const config = new Map<string, JsonValue>(
         Object.entries({ ...options.config, ...extra, role })
     );
@@ -73,7 +117,9 @@ function nodeConfig(
         config.set("triggerRule", options.triggerRule);
     }
 
-    return Object.fromEntries(config);
+    // SAFETY: every entry comes from the JSON config or a JSON-valued preset
+    // field; the cast restores the fixed keys and the caller's extra shape.
+    return Object.fromEntries(config) as PresetConfig<Role, Extra>;
 }
 
 /** A branch name, or a set of branch names. */
@@ -112,7 +158,7 @@ export function branch<
 >(
     key: Key,
     options: BranchOptions<Key, Branches, Input>
-): NodeDefinition<Key, "branch", Input, undefined> {
+): NodeDefinition<Key, "branch", Input, undefined, BranchConfig> {
     assertAirflowKey("Node key", key);
 
     for (const name of options.branches ?? []) {
@@ -164,7 +210,7 @@ export function sensor<
 >(
     key: Key,
     options: SensorOptions<Key, Input>
-): NodeDefinition<Key, "sensor", Input, undefined> {
+): NodeDefinition<Key, "sensor", Input, undefined, SensorConfig> {
     assertAirflowKey("Node key", key);
 
     const { pokeIntervalMs } = options;
@@ -208,7 +254,7 @@ export interface DelayOptions extends NodeOptions<undefined, undefined> {
 export function delay<const Key extends string>(
     key: Key,
     options: DelayOptions
-): NodeDefinition<Key, "delay", undefined, undefined> {
+): NodeDefinition<Key, "delay", undefined, undefined, DelayConfig> {
     assertAirflowKey("Node key", key);
 
     if (!Number.isFinite(options.durationMs)) {
@@ -254,14 +300,14 @@ export function shortCircuit<
 >(
     key: Key,
     options: ShortCircuitOptions<Key, Input>
-): NodeDefinition<Key, "short_circuit", Input, undefined> {
+): NodeDefinition<Key, "short_circuit", Input, undefined, ShortCircuitConfig> {
     assertAirflowKey("Node key", key);
 
     return defineNode({
         key,
         type: "short_circuit",
         config: nodeConfig("router", options, {
-            branches: ["run", "skip"],
+            branches: ["run", "skip"] as const,
         }),
         input: options.input,
         run: (ctx) => (options.condition(ctx) ? "run" : "skip"),
@@ -298,7 +344,7 @@ export function trigger<
 >(
     key: Key,
     options: TriggerOptions<Key, Input>
-): NodeDefinition<Key, "trigger", Input, undefined> {
+): NodeDefinition<Key, "trigger", Input, undefined, TriggerConfig> {
     assertAirflowKey("Node key", key);
     assertAirflowKey("Trigger DAG id", options.dagId);
 
@@ -338,7 +384,7 @@ export function task<
 >(
     key: Key,
     options: TaskOptions<Key, Input, Output>
-): NodeDefinition<Key, "task", Input, Output> {
+): NodeDefinition<Key, "task", Input, Output, TaskConfig> {
     assertAirflowKey("Node key", key);
 
     return defineNode({
