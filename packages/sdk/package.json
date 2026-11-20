@@ -26,10 +26,13 @@
         "test": "vitest run",
         "typecheck": "tsc --noEmit",
         "release": "bumpp",
-        "prepublishOnly": "pnpm run build"
+        "prepublishOnly": "bun run build"
     },
     "devDependencies": {
-        "@badag/core": "workspace:*",
+        "@badag/airflow": "workspace:*",
+        "@badag/dag": "workspace:*",
+        "@badag/graph": "workspace:*",
+        "@badag/runtime": "workspace:*",
         "bumpp": "^12.3.0",
         "tsdown": "^0.23.1",
         "typescript": "7.1.0-beta",

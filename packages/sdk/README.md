@@ -1,17 +1,19 @@
 # @badag/sdk
 
-The Badag SDK entry point. It exports `createDAG`, every task factory, the task kind enum, and the task authoring types. Wiring, validation, and serialization live in the internal [`@badag/core`](../core/README.md) package.
+The published entry point. It re-exports the Airflow authoring dialect, the task layer, the graph spec types and findings, and the in-memory runtime, so one install covers authoring through execution.
 
-Inside this repository, core is imported from source and passed to `createDAG`. The SDK build bundles it, so `@badag/core` is not a runtime dependency of the published package.
+The internal packages are source-only and are bundled into this package at build time; none of them is a runtime dependency of the published artifact.
 
 ```ts
-import { createDAG, delay, task } from "@badag/sdk";
+import { check, createDAG, run, task } from "@badag/sdk";
 
-const extract = task("extract", { fn: () => "raw" });
-const settle = delay("settle", { durationMs: 100 });
-const load = task("load", { fn: () => "stored" });
+const extract = task("extract", { run: () => 42 });
+const load = task("load", { run: () => "stored" });
 
-const dag = createDAG("etl").parse`${extract} >> ${settle} >> ${load}`;
+const dag = createDAG("etl").parse`${extract} >> ${load}`;
+
+check(dag.spec()); // []
+const result = await run(dag.build());
 ```
 
 ## Install
@@ -20,32 +22,22 @@ const dag = createDAG("etl").parse`${extract} >> ${settle} >> ${load}`;
 bun add @badag/sdk
 ```
 
-`sdk` is ESM-only and ships declaration files. `createDAG(dagId, metadata?)` preserves the literal Airflow-style DAG id in its return type, so the `parse()` checks from `@badag/core` apply unchanged.
+ESM-only, ships declaration files, includes `@standard-schema/spec` for schema typing.
 
-## API
+## Surface
 
-| Export | Kind | Summary |
+| Export | From | Summary |
 | --- | --- | --- |
-| `createDAG` | function | `createDAG(dagId, metadata?)` returns a `DAG` |
-| `task`, `delay`, `branch`, `sensor`, `shortCircuit`, `trigger` | functions | Build a task definition of any kind |
-| `TASK_KIND_ENUM` | object | Supported task kind values |
-| Task types | types | Task definitions, factory inputs/outputs, schemas, context, metadata, and trigger rules |
+| `createDAG`, `task`, `branch`, `sensor`, `delay`, `shortCircuit`, `trigger` | `@badag/airflow` | Airflow authoring dialect |
+| `labeled`, `TRIGGER_RULE_ENUM`, `AIRFLOW_FINDING_CODE`, `check`, `checkAirflow` | `@badag/airflow` | Routing overrides, policies, findings |
+| `defineNode` | `@badag/dag` | A node with typed schemas and an optional implementation |
+| `checkSpec`, `GRAPH_FINDING_CODE`, `canonicalStringify` | `@badag/graph` | Structural findings and canonical JSON |
+| `run`, `ACTIVATION_POLICY` | `@badag/runtime` | In-memory executor |
 
-Task types cover every kind:
+Type exports cover `GraphSpec`, `NodeDefinition`, `Implementation`, `BuiltDAG`, `TriggerRule`, `RunResult`, and the rest of the public contracts.
 
-```ts
-import type {
-    BranchTaskDefinition,
-    CreateTask,
-    DAGMetadata,
-    TaskContext,
-    TaskDefinitionBase,
-    TaskFn,
-    TaskKind,
-    TriggerRule,
-} from "@badag/sdk";
-```
+## Build
 
-## License
+`sdk` is a Bun workspace package. `bun run build` bundles the internal packages with `tsdown`; `bun run test` checks the public surface and an end-to-end authoring run.
 
-MIT
+The package is pre-release (`0.0.0`). Persistence alignment for `@badag/db-schema` is still pending.

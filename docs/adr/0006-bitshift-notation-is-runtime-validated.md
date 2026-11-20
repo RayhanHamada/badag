@@ -1,6 +1,6 @@
 # Bitshift notation is runtime-validated
 
-> **Superseded in part:** `DAG.chain()` is deferred for now; see the [roadmap](../roadmap.md). The `parse()` behavior below is unchanged. The notation itself moves to the Airflow dialect; see [ADR 0011](0011-graph-model-is-task-agnostic.md). References to `chain()`, `ChainProblem`, and the `Edges` type parameter describe the state when this ADR was written.
+> **Superseded in part:** `DAG.chain()` is gone; `parse()` and `link()` cover wiring, and the notation now lives in the Airflow dialect ([ADR 0011](0011-graph-model-is-task-agnostic.md)). The `parse()` behavior below is unchanged. References to `chain()`, `ChainProblem`, and the `Edges` type parameter describe the state when this ADR was written.
 
 `DAG.parse` accepts Airflow-style wiring as a tagged template — `dag.parse`${a} >> ${b} >> ${c}`` — and validates the graph at runtime instead of at compile time. The obstacle is TypeScript, not the design: a tagged template infers the interpolated **values** as literals, but never the literal **segments** that hold the operators. Compiling several candidate signatures (`<const S extends readonly string[]>`, `S & TemplateStringsArray`, `readonly [...S] & TemplateStringsArray`) yields `TemplateStringsArray` or `readonly string[]` for the segments in every case, so the operator sequence — and therefore edge direction — is invisible to the type system. Operands are still typed: each interpolation must be a task or a flat list of tasks, so a string, a number, or a nested list fails to typecheck.
 

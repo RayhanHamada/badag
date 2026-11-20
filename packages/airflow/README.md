@@ -52,6 +52,6 @@ const dag = createDAG("pricing").parse`${source} >> ${extract} >> ${route}`
 
 A branch that declares no labels is unconstrained. A branch that declares labels must route every one of them, and may not route anything else.
 
-## Behavior change from `@badag/core`
+## Behavior change from the old SDK
 
 Keys are validated as written. The old factories trimmed surrounding whitespace; a padded key now fails the Airflow convention instead of being normalized.
