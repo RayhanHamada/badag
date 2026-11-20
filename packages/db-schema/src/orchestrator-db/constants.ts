@@ -1,5 +1,9 @@
 // oxlint-disable anti-slop/require-safety-comment-for-type-assertion
 
+// Column length limits. SQLite does not enforce these; they document the
+// application-level contract and are available for input validation.
+export const TASK_KEY_MAX_LENGTH = 100;
+
 // Lifecycle of a task execution within a DAG run.
 export const ENUM_TASK_EXECUTION_STATUS = {
     /**

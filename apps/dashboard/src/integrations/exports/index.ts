@@ -13,8 +13,6 @@ import type { DrizzleSqliteDODatabase } from "drizzle-orm/durable-sqlite";
 import { migrateTaskOrchestratorDB } from "@/integrations/db/orchestrator";
 import { createDynamicWorkerEntrypoint } from "@/integrations/dynamic-worker/entrypoint";
 
-const MIGRATED_KEY = "migrated";
-
 interface TaskOrchestratorDoProps {
     placeholder: string;
 }
@@ -35,14 +33,10 @@ export class TaskOrchestratorDO extends DurableObject<
         this.#db = drizzle(ctx.storage);
 
         ctx.blockConcurrencyWhile(async () => {
-            const migrated = await ctx.storage.get(MIGRATED_KEY);
-
-            if (migrated) {
-                return;
-            }
-
+            // The migrator tracks applied migrations itself. Do not gate this
+            // on a flag: an existing Durable Object would never apply a new
+            // migration.
             await migrateTaskOrchestratorDB(ctx.storage);
-            await ctx.storage.put(MIGRATED_KEY, 1);
         });
     }
 }
