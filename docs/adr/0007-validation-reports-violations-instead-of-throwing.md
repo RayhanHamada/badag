@@ -1,5 +1,7 @@
 # Validation reports violations instead of throwing
 
+**Amended by** [ADR 0010](0010-graph-spec-and-implementations-are-separate-channels.md) and [ADR 0011](0011-graph-model-is-task-agnostic.md): validation becomes a pure `check(spec)` composed from a structural layer and a dialect layer. The reporting decision is unchanged.
+
 `DAG.validate()` returns a readonly list of violations rather than throwing on the first problem. The wiring methods throw on malformed graphs, while construction stores the DAG id verbatim, so this is a deliberate split: the wiring methods refuse to build a malformed graph, and `validate()` checks the identifier convention and audits a graph that already exists.
 
 The exception is not a convenience. A caller that wants "is this graph fit to execute, and if not, what is wrong" cannot use a throwing API: the first error hides the rest, and catching an error to inspect its message string is not a contract. A list is. Each `DAGViolation` carries a `code` from a closed set, the `subjects` involved, and a `message` worded exactly as the corresponding guard, so one vocabulary serves both paths.
