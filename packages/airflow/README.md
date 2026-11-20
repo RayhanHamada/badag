@@ -1,0 +1,57 @@
+# @badag/airflow
+
+The Airflow dialect over `@badag/dag`. It adds six node presets, trigger-rule names, the `>>` / `<<` wiring notation, the `validate_key` convention, and dialect findings. It compiles to the same graph spec as everything else: no Airflow concept leaks into `@badag/graph`.
+
+## Import
+
+```ts
+import {
+    branch,
+    createDAG,
+    delay,
+    sensor,
+    shortCircuit,
+    task,
+    trigger,
+} from "@badag/airflow";
+```
+
+## Presets are roles
+
+| Preset         | Type            | Role      | Config                       |
+| -------------- | --------------- | --------- | ---------------------------- |
+| `task`         | `task`          | `compute` | metadata only                |
+| `branch`       | `branch`        | `router`  | `branches`                   |
+| `sensor`       | `sensor`        | `waiter`  | `pokeIntervalMs`             |
+| `delay`        | `delay`         | `waiter`  | `durationMs`                 |
+| `shortCircuit` | `short_circuit` | `router`  | `branches: ["run", "skip"]`  |
+| `trigger`      | `trigger`       | `compute` | `dagId`, `waitForCompletion` |
+
+Every preset accepts `description`, `config`, `triggerRule`, `input`, and `output`. `triggerRule` is stored only when supplied; the runtime defaults to `all_success`.
+
+`delay` and `trigger` may omit code: the wait and the launch belong to the runtime. A declaration without an implementation still enters the spec.
+
+## Wiring
+
+```ts
+const dag = createDAG("pricing").parse`${source} >> ${extract} >> ${route}`
+    .parse`${route} >> ${[us, eu]}`.parse`${[us, eu]} >> ${publish}`;
+```
+
+- One expression per call. A newline, leading or trailing text, an empty list, a nested list, or a non-task operand is rejected.
+- `>>` points from left to right; `<<` points back.
+- An edge **out of a router** (`branch` or `short_circuit`) defaults to the target's key as its label. Every other edge is unlabeled.
+- `labeled(label, node)` overrides the label, so a route name never dictates a node's key. A label on the left side of an operator is rejected.
+- Repeating a statement is legal when the same definition is supplied again; a different definition under the same key throws.
+
+## Findings
+
+`checkAirflow(spec)` returns dialect findings; `check(spec)` returns `checkSpec(spec)` followed by `checkAirflow(spec)`. Codes are kebab-case:
+
+`invalid-dag-id`, `invalid-node-key`, `duplicate-declared-branch`, `invalid-declared-branch`, `unrouted-branch`, `undeclared-branch-target`, `self-trigger`.
+
+A branch that declares no labels is unconstrained. A branch that declares labels must route every one of them, and may not route anything else.
+
+## Behavior change from `@badag/core`
+
+Keys are validated as written. The old factories trimmed surrounding whitespace; a padded key now fails the Airflow convention instead of being normalized.
