@@ -67,4 +67,4 @@ Nodes and edges keep insertion order for display. `revision` hashes the canonica
 
 ## Boundaries
 
-The graph layer does not know what a `type` means, what a label selects, or whether a node executes. The layers above own that: `@badag/dag` registers implementations by key, `@badag/airflow` supplies presets and notation, and `@badag/runtime` interprets labels and activation policies.
+The graph layer does not know what a `type` means, what a label selects, or whether a node executes. The layers above own that: `@badag/dag` registers implementations by key, and `@badag/airflow` supplies presets and notation. Execution is not part of this stack yet.

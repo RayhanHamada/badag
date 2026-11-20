@@ -1,6 +1,6 @@
 # Badag
 
-A TypeScript SDK for declaring task graphs through dialects, wiring dependencies, and validating their structure. Execution state belongs to a separate runtime.
+A TypeScript SDK for declaring task graphs through dialects, wiring dependencies, and validating their structure. Execution is deferred to a separate runtime.
 
 ## Graph model
 
@@ -112,7 +112,9 @@ The first Badag dialect.
 
 **Self trigger**: The dialect finding for a trigger preset whose target is the DAG that contains it. The declaration is legal, but running it would start a second copy of the same graph, so no scheduler can execute it. _Avoid_: recursive trigger, trigger loop
 
-## Execution
+## Execution (deferred)
+
+Terms for a future runtime. No execution runtime ships in this repository yet.
 
 **Run**: One execution of one immutable graph revision. _Avoid_: job, attempt
 

@@ -40,7 +40,7 @@ implementations.get("extract"); // extract.implementation
 - The **implementations** are build-local code keyed by node key. They never enter the spec.
 - A node key is the only join between the two. `build()` returns a copy of the registry, so later builder changes cannot alter a built artifact.
 
-`resolve(key)` returns `undefined` when a key has no implementation. A declaration without code is legal; the runtime decides whether that is a dispatch error.
+`resolve(key)` returns `undefined` when a key has no implementation. A declaration without code is legal; nothing in this package requires an implementation.
 
 ## Typing
 
@@ -64,4 +64,4 @@ Without an input schema `ctx.payload` is `undefined`; without an output schema t
 
 ## Bound
 
-This package depends on `@badag/graph` only. Presets, notation, and activation policies belong to `@badag/airflow`; scheduling belongs to `@badag/runtime`.
+This package depends on `@badag/graph` only. Presets and notation belong to `@badag/airflow`; execution is not part of this stack yet.

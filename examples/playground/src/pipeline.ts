@@ -2,13 +2,11 @@ import { branch, createDAG, sensor, task } from "@badag/sdk";
 
 export const REGIONS = ["us", "eu"] as const;
 
-export type Region = (typeof REGIONS)[number];
-
 /**
- * Author the daily-pricing DAG, parameterized by the region the branch
- * selects. Edit this file to experiment with the Airflow dialect.
+ * Author the daily-pricing DAG. Edit this file to experiment with the
+ * Airflow dialect.
  */
-export function buildPricingDAG(region: Region) {
+export function buildPricingDAG() {
     const sourceReady = sensor("source-ready", {
         description: "Wait for the vendor price drop",
         predicate: () => true,
@@ -25,7 +23,7 @@ export function buildPricingDAG(region: Region) {
 
     const route = branch("route", {
         branches: REGIONS,
-        choose: () => region,
+        choose: () => "us",
     });
 
     const us = task("us", { run: () => "priced US" });

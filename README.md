@@ -7,7 +7,7 @@
 
 <p align="center">
   <strong>Strongly-typed DAGs.</strong><br />
-  Author with a dialect, compile to a versioned spec, run it.
+  Author with a dialect, compile to a versioned spec.
 </p>
 
 <p align="center">
@@ -16,7 +16,7 @@
   <img alt="MIT license" src="https://img.shields.io/badge/MIT-license-blue" />
 </p>
 
-Badag is a TypeScript SDK for task graphs. Dialects supply the authoring vocabulary — the first is Airflow-inspired — and compile to one frozen JSON spec plus a registry of implementations, which you hand to a runtime. Execution state belongs to a separate runtime.
+Badag is a TypeScript SDK for describing and validating task graphs. Dialects supply the authoring vocabulary — the first is Airflow-inspired — and compile to one frozen JSON spec plus a registry of implementations.
 
 > **The graph is data. Code is keyed by node. Dialects compile to the same graph.**
 
@@ -26,7 +26,7 @@ Badag is a TypeScript SDK for task graphs. Dialects supply the authoring vocabul
 bun add @badag/sdk
 ```
 
-ESM-only, ships declaration files, and bundles the graph, DAG, Airflow, and runtime packages. One install covers authoring through in-memory execution.
+ESM-only, ships declaration files, and bundles the graph, DAG, and Airflow packages. One install covers authoring, compilation, and validation.
 
 ## A graph in 30 seconds
 
@@ -43,7 +43,7 @@ graph LR
 ```
 
 ```ts
-import { branch, check, createDAG, run, sensor, task } from "@badag/sdk";
+import { branch, check, createDAG, sensor, task } from "@badag/sdk";
 
 const sourceReady = sensor("source-ready", {
     predicate: () => true, // the vendor drop arrived
@@ -73,9 +73,9 @@ const pricing = createDAG("daily-pricing")
 check(pricing.spec()); // [] — structural and dialect findings
 
 const { spec, implementations } = pricing.build();
-const result = await run({ spec, implementations });
 
-result.outcomes.get("publish")?.status; // "succeeded"
+spec.nodes.length; // 6
+implementations.has("publish"); // true
 ```
 
 `build()` splits the two channels:
@@ -83,13 +83,13 @@ result.outcomes.get("publish")?.status; // "succeeded"
 - The **spec** is pure data — node keys, open types, JSON config, labeled edges, and a content revision. It is frozen, callback-free, and serializable.
 - The **implementations** are build-local code keyed by node key. They never enter the spec.
 
-The node key is the only join. A spec loaded from storage and a DAG built in memory cross the same seams: `check(spec)`, `orderSpec(spec)`, `run({ spec, implementations })`.
+The node key is the only join. A spec loaded from storage and a DAG built in memory cross the same seams: `check(spec)`, `orderSpec(spec)`, and `build()`.
 
 ## Dialects
 
 `@badag/airflow` is the first dialect, and the only one that ships today. It supplies the presets, `>>` / `<<` notation, Airflow key convention, and dialect findings documented below.
 
-The graph and task layers contain no Airflow vocabulary: `@badag/graph` owns the spec and structural checks, and `@badag/dag` keys implementations by node. `@badag/runtime` switches on `config.role` rather than node type; its activation-policy names borrow Airflow's trigger-rule vocabulary, but the contract is shared. A future dialect — not yet built — can add its own presets, notation, and checks, then compile to the same `GraphSpec` v1. As long as it writes the runtime's `role`, `triggerRule`, and `retries` config keys, it reuses the same implementations and runtime.
+The graph and task layers contain no Airflow vocabulary: `@badag/graph` owns the spec and structural checks, and `@badag/dag` keys implementations by node. A future dialect — not yet built — can add its own presets, notation, and checks, then compile to the same `GraphSpec` v1. The spec keeps `role`, `triggerRule`, and `retries` as config data, so a future runtime can consume it without a spec change.
 
 ## Wiring
 
@@ -108,22 +108,14 @@ Every preset accepts `description`, `config`, and `triggerRule`. `task` also acc
 
 | Preset | Role | Config | Notes |
 | --- | --- | --- | --- |
-| `task` | compute | metadata | the work |
+| `task` | compute | — | the work |
 | `branch` | router | `branches` | selects route labels |
-| `sensor` | waiter | `pokeIntervalMs` | polls a predicate |
-| `delay` | waiter | `durationMs` | code supplied by the runtime |
+| `sensor` | waiter | `pokeIntervalMs` | predicate and interval |
+| `delay` | waiter | `durationMs` | fixed wait |
 | `shortCircuit` | router | `branches: ["run","skip"]` | two fixed labels |
-| `trigger` | compute | `dagId`, `waitForCompletion` | may suspend on the target run |
+| `trigger` | compute | `dagId`, `waitForCompletion` | targets another DAG |
 
-Roles are config, not new node types: `role` is `compute`, `router`, or `waiter`, and the runtime switches on it. A custom type becomes a router by setting `config.role`.
-
-## Routing and activation
-
-A router returns the labels it activates, and may name a node key for a target that is not an immediate child. Route activity survives a skipped upstream, so a non-adjacent target can run when its policy tolerates skipped intermediates.
-
-Activation policies: `all_success` (default), `all_done`, `one_success`, `one_failed`, `none_failed`, `none_failed_min_one_success`, `all_skipped`. A node with no route-active incoming edge is skipped — terminal, never a failure.
-
-Retries are per node: `config.retries` is a non-negative integer, default `0`. A failed attempt retries in place, and every attempt emits its own events.
+Roles are config, not new node types: `role` is `compute`, `router`, or `waiter`. A custom type declares a router by setting `config.role`. `triggerRule` and `retries` are stored as config data for a future runtime; this SDK does not interpret them.
 
 ## Findings
 
@@ -139,10 +131,9 @@ Retries are per node: `config.retries` is a non-negative integer, default `0`. A
 | `@badag/graph` | dialect-agnostic nodes, labeled edges, order, cycles, structural findings, the spec |
 | `@badag/dag` | node = key + type + config, implementation registry, `build()` |
 | `@badag/airflow` | first dialect: six presets, trigger-rule names, `>>` / `<<`, key convention, dialect findings |
-| `@badag/runtime` | in-memory execution, route propagation, activation policies, retries |
 | `@badag/db-schema` | Drizzle schemas: revision-scoped graphs and runs (`main-db`), task executions (`orchestrator-db`) |
-| `@badag/sdk` | the published entry point for the Airflow dialect; bundles `@badag/graph`, `@badag/dag`, `@badag/airflow`, and `@badag/runtime` |
+| `@badag/sdk` | the published entry point for the Airflow dialect; bundles `@badag/graph`, `@badag/dag`, and `@badag/airflow` |
 
 ## Status
 
-Pre-release (`0.0.0`). The SDK is the only published package; the others are source-only workspace packages. Airflow is the only dialect today; `@badag/graph` and `@badag/dag` carry no Airflow vocabulary, and `@badag/runtime` depends on only the `role`, `triggerRule`, and `retries` config contract, so future dialects can compile to the same spec. `@badag/db-schema` stores revision-scoped graphs: immutable revisions own the serialized spec, node rows, and labeled edges; runs reference a revision; task executions live in a second database. The SDK runtime is in-memory and writes none of it.
+Pre-release (`0.0.0`). The SDK is the only published package; the others are source-only workspace packages. Airflow is the only dialect today; `@badag/graph` and `@badag/dag` carry no Airflow vocabulary, and the spec keeps `role`, `triggerRule`, and `retries` as config data, so future dialects can compile to the same spec. `@badag/db-schema` stores revision-scoped graphs: immutable revisions own the serialized spec, node rows, and labeled edges; runs reference a revision; task executions live in a second database. The SDK describes and validates graphs; it does not execute or persist them, and no execution runtime ships yet.

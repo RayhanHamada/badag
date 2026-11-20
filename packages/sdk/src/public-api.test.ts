@@ -3,10 +3,9 @@ import { describe, expect, it } from "vitest";
 import * as sdk from "./index";
 
 describe("@badag/sdk", () => {
-    it("exposes the authoring, graph, and runtime surface", () => {
+    it("exposes the authoring and graph surface", () => {
         expect(Object.keys(sdk).toSorted()).toStrictEqual(
             [
-                "ACTIVATION_POLICY",
                 "AIRFLOW_FINDING_CODE",
                 "AirflowDAG",
                 "DEFAULT_TRIGGER_RULE",
@@ -22,7 +21,6 @@ describe("@badag/sdk", () => {
                 "delay",
                 "isAirflowKey",
                 "labeled",
-                "run",
                 "sensor",
                 "shortCircuit",
                 "task",
@@ -31,7 +29,7 @@ describe("@badag/sdk", () => {
         );
     });
 
-    it("builds, validates, and runs a DAG through the SDK", async () => {
+    it("builds and validates a DAG through the SDK", () => {
         const dag = sdk.createDAG("etl");
         const extract = sdk.task("extract", { run: () => 42 });
         const load = sdk.task("load", { run: () => "stored" });
@@ -41,9 +39,10 @@ describe("@badag/sdk", () => {
         const built = dag.build();
 
         expect(sdk.check(built.spec)).toStrictEqual([]);
-
-        const result = await sdk.run(built);
-
-        expect(result.outcomes.get("load")?.status).toBe("succeeded");
+        expect(built.spec.nodes.map((node) => node.key)).toStrictEqual([
+            "extract",
+            "load",
+        ]);
+        expect(built.implementations.has("load")).toBeTruthy();
     });
 });

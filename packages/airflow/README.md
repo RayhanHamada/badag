@@ -27,11 +27,11 @@ import {
 | `shortCircuit` | `short_circuit` | `router`  | `branches: ["run", "skip"]`  |
 | `trigger`      | `trigger`       | `compute` | `dagId`, `waitForCompletion` |
 
-Every preset accepts `description`, `config`, and `triggerRule`. `task` also accepts `input` and `output`; `branch`, `sensor`, `shortCircuit`, and `trigger` accept `input`; `delay` declares neither schema. `triggerRule` is stored only when supplied; the runtime defaults to `all_success`.
+Every preset accepts `description`, `config`, and `triggerRule`. `task` also accepts `input` and `output`; `branch`, `sensor`, `shortCircuit`, and `trigger` accept `input`; `delay` declares neither schema. `triggerRule` is stored only when supplied; the dialect exposes `all_success` as the default name, but the SDK does not apply it.
 
 Each preset returns its own config type (`TaskConfig`, `BranchConfig`, `SensorConfig`, `DelayConfig`, `ShortCircuitConfig`, `TriggerConfig`), so `node.config` exposes the keys that preset writes.
 
-`delay` and `trigger` may omit code: the wait and the launch belong to the runtime. A declaration without an implementation still enters the spec.
+`delay` and `trigger` may omit code; their behavior is execution-defined. A declaration without an implementation still enters the spec.
 
 ## Wiring
 

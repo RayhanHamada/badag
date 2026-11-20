@@ -122,17 +122,6 @@
         "vitest": "^5.0.5",
       },
     },
-    "packages/runtime": {
-      "name": "@badag/runtime",
-      "dependencies": {
-        "@badag/dag": "workspace:*",
-        "@badag/graph": "workspace:*",
-      },
-      "devDependencies": {
-        "typescript": "7.1.0-beta",
-        "vitest": "^5.0.5",
-      },
-    },
     "packages/sdk": {
       "name": "@badag/sdk",
       "version": "0.0.0",
@@ -140,7 +129,6 @@
         "@badag/airflow": "workspace:*",
         "@badag/dag": "workspace:*",
         "@badag/graph": "workspace:*",
-        "@badag/runtime": "workspace:*",
         "bumpp": "^12.3.0",
         "tsdown": "^0.23.1",
         "typescript": "7.1.0-beta",
@@ -218,8 +206,6 @@
     "@badag/graph": ["@badag/graph@workspace:packages/graph"],
 
     "@badag/playground": ["@badag/playground@workspace:examples/playground"],
-
-    "@badag/runtime": ["@badag/runtime@workspace:packages/runtime"],
 
     "@badag/sdk": ["@badag/sdk@workspace:packages/sdk"],
 

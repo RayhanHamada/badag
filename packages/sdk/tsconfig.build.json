@@ -5,11 +5,5 @@
         "declaration": true,
         "emitDeclarationOnly": true
     },
-    "include": [
-        "src",
-        "../graph/src",
-        "../dag/src",
-        "../airflow/src",
-        "../runtime/src"
-    ]
+    "include": ["src", "../graph/src", "../dag/src", "../airflow/src"]
 }
