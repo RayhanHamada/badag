@@ -1,10 +1,12 @@
 export { checkSpec, GRAPH_FINDING_CODE } from "./check";
 
-export type { GraphFinding, GraphFindingCode } from "./check";
+export type { GraphCheckInput, GraphFinding, GraphFindingCode } from "./check";
 
 export { createGraph, Graph } from "./graph";
 
 export type { GraphChange } from "./graph";
+
+export { orderSpec } from "./order";
 
 export { SPEC_VERSION } from "./spec";
 

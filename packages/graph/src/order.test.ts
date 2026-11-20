@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import type { GraphCheckInput } from "./check";
 import { createGraph } from "./graph";
+import { orderSpec } from "./order";
 
 const RANGE = 4_294_967_296;
 
@@ -16,6 +18,47 @@ function sequence(seed: number): () => number {
 }
 
 describe("order", () => {
+    it("orders a spec loaded from storage", () => {
+        const spec: GraphCheckInput = {
+            key: "loaded",
+            nodes: [
+                { key: "load", type: "task", config: {} },
+                { key: "extract", type: "task", config: {} },
+                { key: "transform", type: "task", config: {} },
+            ],
+            edges: [
+                { from: "extract", to: "transform" },
+                { from: "transform", to: "load" },
+            ],
+        };
+
+        expect(orderSpec(spec)).toStrictEqual(["extract", "transform", "load"]);
+    });
+
+    it("rejects a loaded spec with a cycle or an unknown endpoint", () => {
+        expect(() =>
+            orderSpec({
+                key: "cycle",
+                nodes: [
+                    { key: "a", type: "task", config: {} },
+                    { key: "b", type: "task", config: {} },
+                ],
+                edges: [
+                    { from: "a", to: "b" },
+                    { from: "b", to: "a" },
+                ],
+            })
+        ).toThrow(/cycle/u);
+
+        expect(() =>
+            orderSpec({
+                key: "broken",
+                nodes: [{ key: "a", type: "task", config: {} }],
+                edges: [{ from: "a", to: "ghost" }],
+            })
+        ).toThrow(/ghost/u);
+    });
+
     it("respects every edge over generated DAGs", () => {
         for (let seed = 1; seed <= 50; seed += 1) {
             const random = sequence(seed);

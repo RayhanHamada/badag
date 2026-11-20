@@ -9,6 +9,7 @@
 
 import { checkSpec } from "./check";
 import type { GraphFinding } from "./check";
+import { orderSpec } from "./order";
 import { canonicalStringify, revisionOf } from "./revision";
 import { SPEC_VERSION } from "./spec";
 import type { GraphEdge, GraphNode, GraphNodeInput, GraphSpec } from "./spec";
@@ -179,50 +180,11 @@ export class Graph {
      * which the mutations already prevent.
      */
     order(): readonly string[] {
-        const remaining = new Map<string, number>();
-        const ready: string[] = [];
-
-        for (const key of this.#nodes.keys()) {
-            const count = this.#upstream.get(key)?.size ?? 0;
-
-            remaining.set(key, count);
-
-            if (count === 0) {
-                ready.push(key);
-            }
-        }
-
-        const ordered: string[] = [];
-
-        // The queue grows while it is walked, so for...of would stop early.
-        // oxlint-disable-next-line typescript/prefer-for-of
-        for (let index = 0; index < ready.length; index += 1) {
-            const key = ready[index];
-
-            ordered.push(key);
-
-            for (const next of this.#downstream.get(key) ?? NO_NEIGHBORS) {
-                const count = remaining.get(next);
-
-                if (count === undefined) {
-                    throw new Error(
-                        `Node "${next}" is not registered in graph "${this.#key}"`
-                    );
-                }
-
-                remaining.set(next, count - 1);
-
-                if (count === 1) {
-                    ready.push(next);
-                }
-            }
-        }
-
-        if (ordered.length !== this.#nodes.size) {
-            throw new Error(`Graph "${this.#key}" contains a cycle`);
-        }
-
-        return ordered;
+        return orderSpec({
+            key: this.#key,
+            nodes: [...this.#nodes.values()],
+            edges: this.#edges,
+        });
     }
 
     /** Return every structural finding. Empty for a graph built here. */
