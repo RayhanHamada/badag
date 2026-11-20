@@ -17,7 +17,21 @@ describe("node definitions", () => {
         expect(node.key).toBe("extract");
         expect(node.type).toBe("task");
         expect(node.config).toStrictEqual({ retries: 2 });
-        expect(node.implementation.run).toBe(run);
+
+        const { implementation } = node;
+
+        if (implementation === undefined) {
+            throw new Error("expected an implementation");
+        }
+
+        expect(implementation.run).toBe(run);
+    });
+
+    it("declares a node without code", () => {
+        const node = defineNode({ key: "notify", type: "trigger" });
+
+        expect(node.implementation).toBeUndefined();
+        expect(node.key).toBe("notify");
     });
 
     it("defaults config to an empty frozen object", () => {
@@ -41,8 +55,14 @@ describe("node definitions", () => {
             run: (ctx) => ctx.payload.length,
         });
 
-        expect(node.implementation.input).toBe(input);
-        expect(node.implementation.output).toBe(output);
+        const { implementation } = node;
+
+        if (implementation === undefined) {
+            throw new Error("expected an implementation");
+        }
+
+        expect(implementation.input).toBe(input);
+        expect(implementation.output).toBe(output);
     });
 
     it("rejects an empty key or type", () => {

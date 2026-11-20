@@ -45,9 +45,10 @@ export interface NodeDefinitionInput<
      */
     readonly output?: Output;
     /**
-     * The work the node performs.
+     * The work the node performs. Omit it to declare a node whose
+     * implementation is supplied later or by the runtime.
      */
-    readonly run: (
+    readonly run?: (
         ctx: NodeContext<Key, NodePayloadOf<Input>>
     ) => MaybePromise<NodeProducedOf<Output>>;
 }
@@ -62,7 +63,10 @@ export interface NodeDefinition<
     readonly key: Key;
     readonly type: Type;
     readonly config: JsonObject;
-    readonly implementation: Implementation<Key, Input, Output>;
+    /**
+     * `undefined` when the node was declared without code.
+     */
+    readonly implementation?: Implementation<Key, Input, Output>;
 }
 
 /** A node definition with its literals erased for registration. */
@@ -99,10 +103,13 @@ export function defineNode<
         key: input.key,
         type: input.type,
         config: Object.freeze({ ...input.config }),
-        implementation: Object.freeze({
-            run: input.run,
-            input: input.input,
-            output: input.output,
-        }),
+        implementation:
+            input.run === undefined
+                ? undefined
+                : Object.freeze({
+                      run: input.run,
+                      input: input.input,
+                      output: input.output,
+                  }),
     });
 }

@@ -41,6 +41,16 @@ describe("DAG", () => {
         );
     });
 
+    it("keeps a declaration whose implementation is missing", () => {
+        const graph = createDAG("alerts");
+
+        graph.add(defineNode({ key: "notify", type: "trigger" }));
+
+        expect(graph.nodes().has("notify")).toBeTruthy();
+        expect(graph.resolve("notify")).toBeUndefined();
+        expect(graph.build().implementations.size).toBe(0);
+    });
+
     it("throws on a duplicate key and keeps the first registration", () => {
         const graph = createDAG("etl");
 

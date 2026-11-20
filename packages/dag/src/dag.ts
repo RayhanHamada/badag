@@ -104,10 +104,12 @@ export class DAG<Key extends string = string> {
         });
 
         for (const definition of definitions) {
-            this.#implementations.set(
-                definition.key,
-                definition.implementation
-            );
+            if (definition.implementation !== undefined) {
+                this.#implementations.set(
+                    definition.key,
+                    definition.implementation
+                );
+            }
         }
 
         return this;

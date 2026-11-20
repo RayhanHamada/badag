@@ -14,10 +14,16 @@ describe("node typing", () => {
             run: (ctx) => ctx.payload.length,
         });
 
-        expectTypeOf(node.implementation.run)
+        const { implementation } = node;
+
+        if (implementation === undefined) {
+            throw new Error("expected an implementation");
+        }
+
+        expectTypeOf(implementation.run)
             .parameter(0)
             .toEqualTypeOf<NodeContext<"extract", string>>();
-        expectTypeOf(node.implementation.run).returns.toEqualTypeOf<
+        expectTypeOf(implementation.run).returns.toEqualTypeOf<
             MaybePromise<number>
         >();
     });
@@ -33,7 +39,13 @@ describe("node typing", () => {
             },
         });
 
-        expectTypeOf(node.implementation.run).returns.toEqualTypeOf<
+        const { implementation } = node;
+
+        if (implementation === undefined) {
+            throw new Error("expected an implementation");
+        }
+
+        expectTypeOf(implementation.run).returns.toEqualTypeOf<
             MaybePromise<unknown>
         >();
     });
