@@ -76,6 +76,16 @@
         "vitest": "^5.1.1",
       },
     },
+    "examples/playground": {
+      "name": "@badag/playground",
+      "dependencies": {
+        "@badag/sdk": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "^1.4.4",
+        "typescript": "7.1.0-beta",
+      },
+    },
     "packages/airflow": {
       "name": "@badag/airflow",
       "dependencies": {
@@ -206,6 +216,8 @@
     "@badag/db-schema": ["@badag/db-schema@workspace:packages/db-schema"],
 
     "@badag/graph": ["@badag/graph@workspace:packages/graph"],
+
+    "@badag/playground": ["@badag/playground@workspace:examples/playground"],
 
     "@badag/runtime": ["@badag/runtime@workspace:packages/runtime"],
 
