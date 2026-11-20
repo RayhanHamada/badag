@@ -27,7 +27,7 @@ import {
 | `shortCircuit` | `short_circuit` | `router`  | `branches: ["run", "skip"]`  |
 | `trigger`      | `trigger`       | `compute` | `dagId`, `waitForCompletion` |
 
-Every preset accepts `description`, `config`, `triggerRule`, `input`, and `output`. `triggerRule` is stored only when supplied; the runtime defaults to `all_success`.
+Every preset accepts `description`, `config`, and `triggerRule`. `task` also accepts `input` and `output`; `branch`, `sensor`, `shortCircuit`, and `trigger` accept `input`; `delay` declares neither schema. `triggerRule` is stored only when supplied; the runtime defaults to `all_success`.
 
 `delay` and `trigger` may omit code: the wait and the launch belong to the runtime. A declaration without an implementation still enters the spec.
 

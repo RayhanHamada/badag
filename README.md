@@ -26,7 +26,7 @@ Badag is a TypeScript SDK for task graphs. You declare nodes and wiring with an 
 bun add @badag/sdk
 ```
 
-ESM-only, ships declaration files, and bundles the internal packages. One install, no execution engine hidden inside.
+ESM-only, ships declaration files, and bundles the graph, DAG, Airflow, and runtime packages. One install covers authoring through in-memory execution.
 
 ## A graph in 30 seconds
 
@@ -46,11 +46,14 @@ graph LR
 import { branch, check, createDAG, run, sensor, task } from "@badag/sdk";
 
 const sourceReady = sensor("source-ready", {
-    predicate: async () => (await fetch("https://example.com/prices")).ok,
+    predicate: () => true, // the vendor drop arrived
     pokeIntervalMs: 60_000,
 });
 const extract = task("extract", {
-    run: async () => (await fetch("https://example.com/prices")).json(),
+    run: async () => [
+        { region: "us", price: 120 },
+        { region: "eu", price: 110 },
+    ],
 });
 const route = branch("route", {
     branches: ["us", "eu"] as const,
@@ -95,7 +98,7 @@ An edge **out of a router** defaults to the target's key as its route label. Eve
 
 ## Presets
 
-Every preset accepts `description`, `config`, `triggerRule`, `input`, and `output`.
+Every preset accepts `description`, `config`, and `triggerRule`. `task` also accepts `input` and `output`; `branch`, `sensor`, `shortCircuit`, and `trigger` accept `input`; `delay` declares neither schema.
 
 | Preset | Role | Config | Notes |
 | --- | --- | --- | --- |
@@ -114,6 +117,8 @@ A router returns the labels it activates, and may name a node key for a target t
 
 Activation policies: `all_success` (default), `all_done`, `one_success`, `one_failed`, `none_failed`, `none_failed_min_one_success`, `all_skipped`. A node with no route-active incoming edge is skipped — terminal, never a failure.
 
+Retries are per node: `config.retries` is a non-negative integer, default `0`. A failed attempt retries in place, and every attempt emits its own events.
+
 ## Findings
 
 `check(spec)` returns structural findings followed by dialect findings, each `{ code, subjects, message }`:
@@ -129,8 +134,9 @@ Activation policies: `all_success` (default), `all_done`, `one_success`, `one_fa
 | `@badag/dag` | node = key + type + config, implementation registry, `build()` |
 | `@badag/airflow` | six presets, trigger-rule names, `>>` / `<<`, key convention, dialect findings |
 | `@badag/runtime` | in-memory execution, route propagation, activation policies, retries |
-| `@badag/sdk` | the published entry point; bundles the four above |
+| `@badag/db-schema` | Drizzle schemas: revision-scoped graphs and runs (`main-db`), task executions (`orchestrator-db`) |
+| `@badag/sdk` | the published entry point; bundles `@badag/graph`, `@badag/dag`, `@badag/airflow`, and `@badag/runtime` |
 
 ## Status
 
-Pre-release (`0.0.0`). The SDK is the only published package; the others are source-only workspace packages. Persistence alignment for `@badag/db-schema` is still pending.
+Pre-release (`0.0.0`). The SDK is the only published package; the others are source-only workspace packages. `@badag/db-schema` stores revision-scoped graphs: immutable revisions own the serialized spec, node rows, and labeled edges; runs reference a revision; task executions live in a second database. The SDK runtime is in-memory and writes none of it.

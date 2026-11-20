@@ -2,8 +2,8 @@
  * The in-memory executor.
  *
  * It resolves a spec in topological order, carrying route labels forward until
- * each node's activation policy consumes them. It does not retry, persist, or
- * validate payloads: those belong to the durable runtime.
+ * each node's activation policy consumes them. It does not persist or validate
+ * payloads: those belong to the durable runtime.
  */
 
 import type { AnyImplementation } from "@badag/dag";

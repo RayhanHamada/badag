@@ -2,7 +2,8 @@
  * Runtime result types.
  *
  * An outcome is terminal; scheduling states (pending, queued, running) are
- * transient and never appear here. `attempt` is always 1 until retries exist.
+ * transient and never appear here. `attempt` is the try that produced the
+ * outcome.
  */
 
 import type { AnyImplementation } from "@badag/dag";

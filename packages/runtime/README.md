@@ -1,6 +1,6 @@
 # @badag/runtime
 
-The in-memory executor. It takes a built DAG — a spec plus implementations keyed by node key — and resolves it to a deterministic map of outcomes and an event log. No database, no network, no retries.
+The in-memory executor. It takes a built DAG — a spec plus implementations keyed by node key — and resolves it to a deterministic map of outcomes and an event log. No database, no network; retries are per node.
 
 ## Import
 
@@ -25,6 +25,7 @@ result.events; // started / succeeded / failed / skipped, in resolution order
 | --- | --- |
 | `role` (config) | `compute` (default), `router`, or `waiter` |
 | `triggerRule` (config) | activation policy; defaults to `all_success` |
+| `retries` (config) | non-negative retry count; defaults to `0` |
 | edge `label` | route label; an unlabeled edge is always route-active |
 
 An edge is **route-active** when it is unlabeled or its label is in the run's active set. A node with no route-active incoming edge is **skipped** — terminal, never a failure. Skip activity still propagates, so a node behind a skipped intermediate can run when its policy tolerates it.
@@ -41,7 +42,7 @@ Policy is evaluated over the outcomes of route-active incoming edges once they a
 
 ## Outcomes and events
 
-`OutcomeStatus` is `succeeded`, `failed`, `skipped`, or `cancelled` — terminal only. `attempt` is `1` until retries exist. Scheduling states (pending, queued, running) are intentionally absent.
+`OutcomeStatus` is `succeeded`, `failed`, `skipped`, or `cancelled` — terminal only. `attempt` is the attempt that produced the outcome: `1` unless `config.retries` allowed a retry. Scheduling states (pending, queued, running) are intentionally absent.
 
 `events` contains `started`, `succeeded`, `failed`, and `skipped` records in resolution order; values live only in `outcomes`. Running the same spec with the same implementations produces the same events and outcomes.
 
