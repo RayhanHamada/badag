@@ -67,7 +67,7 @@ export type TriggerConfig = PresetConfig<
     { readonly dagId: string; readonly waitForCompletion: boolean }
 >;
 
-/** Metadata every preset accepts. */
+/** Options every preset accepts. */
 export interface NodeOptions<
     Input extends AnySchema = AnySchema,
     Output extends AnySchema = AnySchema,

@@ -1,6 +1,6 @@
 # Badag
 
-A TypeScript SDK for declaring task graphs, wiring dependencies, and validating their structure. Execution state belongs to a separate runtime.
+A TypeScript SDK for declaring task graphs through dialects, wiring dependencies, and validating their structure. Execution state belongs to a separate runtime.
 
 ## Graph model
 
@@ -22,7 +22,9 @@ A TypeScript SDK for declaring task graphs, wiring dependencies, and validating 
 
 **Node type**: The open discriminator a node's config is interpreted under, stored as data. _Avoid_: kind, operator
 
-**Display label**: An optional human-readable name for a node, carried in config. It is never identity and never a dependency reference. _Avoid_: name, title, alias
+**Node config**: The JSON object stored on a node in the spec. It carries the node's role, description, activation policy, retry count, and preset-specific keys; the graph layer never interprets it. _Avoid_: node options, settings, metadata
+
+**Node description**: An optional human-readable label carried in node config. It is never identity and never a dependency reference. _Avoid_: name, title, alias, display label
 
 **Node role**: What a node contributes at execution — compute, router, or waiter. A preset is a named configuration of one role. _Avoid_: task kind, task type, operator
 
@@ -44,11 +46,23 @@ A TypeScript SDK for declaring task graphs, wiring dependencies, and validating 
 
 **Graph check**: A read-only pass over a spec that returns findings instead of throwing. It is a pure function of the spec, so a graph loaded from storage and one built in memory cross the same seam. _Avoid_: validation, audit, lint, verification
 
+## Dialects
+
+**Dialect**: An authoring vocabulary and syntax that compiles to the graph spec. It owns presets, notation, key conventions, and dialect findings; the graph layer never interprets it, and the runtime sees only the shared node config contract. _Avoid_: adapter, flavor, frontend
+
+**Preset**: A named authoring form in a dialect that fixes one node type and role and produces a node definition. _Avoid_: task kind, operator, template
+
+**Node options**: The authoring inputs a preset accepts — description, extra config, activation policy, schemas, and preset-specific fields. They become node config and implementation; they are not stored as a unit. _Avoid_: task metadata, settings, attributes
+
+**Preset config**: The part of node config a preset exposes — the keys it makes available and what they mean. It belongs to the preset, not the graph layer. _Avoid_: node options, settings
+
+**Dialect finding**: A finding produced by a dialect's check beyond the graph layer's structural findings. _Avoid_: validation error, warning
+
 ## Airflow dialect
 
-**Task definition**: The dialect's authoring form of a compute node: a key, an implementation, and optional metadata declared before the node belongs to any DAG. _Avoid_: task spec, task template, unregistered task
+The first Badag dialect.
 
-**Task metadata**: The optional, non-behavioral part of a task definition — description, config, and timing such as a polling interval. Metadata never affects the node key. _Avoid_: options, settings, attributes
+**Task definition**: The dialect's authoring form of a compute node: a key, an implementation, and optional node options declared before the node belongs to any DAG. _Avoid_: task spec, task template, unregistered task
 
 **Payload**: The value a task receives, typed by its input schema. Without an input schema the payload is `undefined`. _Avoid_: argument, params, data
 
