@@ -11,6 +11,7 @@
 </p>
 
 <p align="center">
+  <img alt="Tests" src="https://img.shields.io/github/actions/workflow/status/RayhanHamada/badag/ci.yml?label=tests" />
   <img alt="TypeScript strict" src="https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white" />
   <img alt="ESM only" src="https://img.shields.io/badge/module-ESM-F9A03C" />
   <img alt="MIT license" src="https://img.shields.io/badge/MIT-license-blue" />
