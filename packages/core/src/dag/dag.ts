@@ -6,9 +6,8 @@
  * change registers no implementation, and a duplicate key registers neither.
  */
 
-import { createGraph } from "@badag/graph";
-import type { Graph, GraphEdge, GraphNode, GraphSpec } from "@badag/graph";
-
+import { createGraph } from "../graph";
+import type { Graph, GraphEdge, GraphNode, GraphSpec } from "../graph";
 import type { AnyNodeDefinition } from "./definition";
 import type { AnyImplementation } from "./types";
 

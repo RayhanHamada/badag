@@ -10,8 +10,7 @@
         "typecheck": "tsc --noEmit"
     },
     "dependencies": {
-        "@badag/dag": "workspace:*",
-        "@badag/graph": "workspace:*",
+        "@badag/core": "workspace:*",
         "@standard-schema/spec": "^1.1.0"
     },
     "devDependencies": {

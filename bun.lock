@@ -89,8 +89,7 @@
     "packages/airflow": {
       "name": "@badag/airflow",
       "dependencies": {
-        "@badag/dag": "workspace:*",
-        "@badag/graph": "workspace:*",
+        "@badag/core": "workspace:*",
         "@standard-schema/spec": "^1.1.0",
       },
       "devDependencies": {
@@ -98,10 +97,9 @@
         "vitest": "^5.0.5",
       },
     },
-    "packages/dag": {
-      "name": "@badag/dag",
+    "packages/core": {
+      "name": "@badag/core",
       "dependencies": {
-        "@badag/graph": "workspace:*",
         "@standard-schema/spec": "^1.1.0",
       },
       "devDependencies": {
@@ -115,20 +113,12 @@
         "drizzle-orm": "^0.45.4",
       },
     },
-    "packages/graph": {
-      "name": "@badag/graph",
-      "devDependencies": {
-        "typescript": "7.1.0-beta",
-        "vitest": "^5.0.5",
-      },
-    },
     "packages/sdk": {
       "name": "@badag/sdk",
       "version": "0.0.0",
       "devDependencies": {
         "@badag/airflow": "workspace:*",
-        "@badag/dag": "workspace:*",
-        "@badag/graph": "workspace:*",
+        "@badag/core": "workspace:*",
         "bumpp": "^12.3.0",
         "tsdown": "^0.23.1",
         "typescript": "7.1.0-beta",
@@ -197,13 +187,11 @@
 
     "@badag/airflow": ["@badag/airflow@workspace:packages/airflow"],
 
-    "@badag/dag": ["@badag/dag@workspace:packages/dag"],
+    "@badag/core": ["@badag/core@workspace:packages/core"],
 
     "@badag/dashboard": ["@badag/dashboard@workspace:apps/dashboard"],
 
     "@badag/db-schema": ["@badag/db-schema@workspace:packages/db-schema"],
-
-    "@badag/graph": ["@badag/graph@workspace:packages/graph"],
 
     "@badag/playground": ["@badag/playground@workspace:examples/playground"],
 

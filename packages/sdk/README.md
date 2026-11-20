@@ -1,10 +1,10 @@
 # @badag/sdk
 
-The published entry point for the Airflow dialect and the shared graph/task stack. It re-exports the Airflow authoring surface, the task layer, and the graph spec types and findings, so one install covers authoring, compilation, and validation.
+The published entry point for the Airflow dialect and the shared core graph/task stack. It re-exports the Airflow authoring surface, the task layer, and the graph spec types and findings, so one install covers authoring, compilation, and validation.
 
 Airflow is the first dialect; the graph spec and implementation registry are dialect-agnostic. A future dialect can ship its own authoring surface and compile to `GraphSpec` v1. No second dialect exists yet.
 
-The graph, DAG, and Airflow packages are source-only and are bundled into this package at build time; none is an external dependency of the published artifact.
+The core and Airflow packages are source-only and are bundled into this package at build time; neither is an external dependency of the published artifact.
 
 ```ts
 import { check, createDAG, task } from "@badag/sdk";
@@ -38,8 +38,8 @@ ESM-only, ships declaration files, includes `@standard-schema/spec` for schema t
 | --- | --- | --- |
 | `AirflowDAG`, `createDAG`, `task`, `branch`, `sensor`, `delay`, `shortCircuit`, `trigger` | `@badag/airflow` | First dialect: authoring surface |
 | `labeled`, `TRIGGER_RULE_ENUM`, `DEFAULT_TRIGGER_RULE`, `AIRFLOW_FINDING_CODE`, `isAirflowKey`, `check`, `checkAirflow` | `@badag/airflow` | Routing overrides, policies, key convention, findings |
-| `defineNode` | `@badag/dag` | A node with typed schemas and an optional implementation |
-| `checkSpec`, `GRAPH_FINDING_CODE`, `canonicalStringify` | `@badag/graph` | Structural findings and canonical JSON |
+| `defineNode` | `@badag/core` | A node with typed schemas and an optional implementation |
+| `checkSpec`, `GRAPH_FINDING_CODE`, `canonicalStringify` | `@badag/core` | Structural findings and canonical JSON |
 
 Type exports cover `GraphSpec`, `NodeDefinition`, `Implementation`, `BuiltDAG`, `TriggerRule`, and the rest of the public contracts.
 

@@ -5,8 +5,8 @@
  * structural findings so a caller can ask once whether a spec is fit to run.
  */
 
-import { checkSpec } from "@badag/graph";
-import type { GraphFinding, GraphSpec, JsonValue } from "@badag/graph";
+import { checkSpec } from "@badag/core";
+import type { GraphFinding, GraphSpec, JsonValue } from "@badag/core";
 
 import { airflowKeyError } from "./keys";
 

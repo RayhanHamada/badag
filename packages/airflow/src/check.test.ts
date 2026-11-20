@@ -1,5 +1,5 @@
-import { createGraph as createRawGraph } from "@badag/graph";
-import type { GraphEdge, GraphNodeInput, GraphSpec } from "@badag/graph";
+import { createGraph as createRawGraph } from "@badag/core";
+import type { GraphEdge, GraphNodeInput, GraphSpec } from "@badag/core";
 import { describe, expect, it } from "vitest";
 
 import { AIRFLOW_FINDING_CODE, check, checkAirflow } from "./check";

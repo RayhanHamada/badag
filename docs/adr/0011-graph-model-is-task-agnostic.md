@@ -1,6 +1,8 @@
 # The graph model is task-agnostic; Airflow vocabulary is a dialect
 
-**Status**: accepted
+**Status**: accepted; package split superseded by ADR 0014
+
+> Packaging update: ADR 0014 merges `@badag/graph` and `@badag/dag` into `@badag/core`. The task-agnostic layering below still applies.
 
 `@badag/core` becomes three packages with one dependency direction. `@badag/graph` holds nodes, labeled edges, adjacency, ordering, cycle rejection, structural findings, and the spec. `@badag/dag` adds a task layer: a node carries a key, an open type, config, and an implementation reference. `@badag/airflow` holds the Airflow vocabulary: six node presets, trigger-rule names, `>>` / `<<`, the `validate_key` id convention, and branch routing. Only `@badag/sdk` is published, and it re-exports the composition.
 

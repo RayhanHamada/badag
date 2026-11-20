@@ -44,7 +44,12 @@ export type {
     WiringOperand,
 } from "@badag/airflow";
 
-export { defineNode } from "@badag/dag";
+export {
+    canonicalStringify,
+    checkSpec,
+    defineNode,
+    GRAPH_FINDING_CODE,
+} from "@badag/core";
 
 export type {
     AnyImplementation,
@@ -52,22 +57,6 @@ export type {
     AnySchema,
     BuiltDAG,
     DAGChange,
-    Implementation,
-    MaybePromise,
-    NodeContext,
-    NodeDefinition,
-    NodeDefinitionInput,
-    NodePayloadOf,
-    NodeProducedOf,
-} from "@badag/dag";
-
-export {
-    canonicalStringify,
-    checkSpec,
-    GRAPH_FINDING_CODE,
-} from "@badag/graph";
-
-export type {
     GraphCheckInput,
     GraphEdge,
     GraphFinding,
@@ -75,6 +64,13 @@ export type {
     GraphNode,
     GraphNodeInput,
     GraphSpec,
+    Implementation,
     JsonObject,
     JsonValue,
-} from "@badag/graph";
+    MaybePromise,
+    NodeContext,
+    NodeDefinition,
+    NodeDefinitionInput,
+    NodePayloadOf,
+    NodeProducedOf,
+} from "@badag/core";

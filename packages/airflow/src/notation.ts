@@ -7,7 +7,7 @@
  * graph checks stay in the DAG.
  */
 
-import type { AnyNodeDefinition } from "@badag/dag";
+import type { AnyNodeDefinition } from "@badag/core";
 
 import { assertRouteLabel } from "./keys";
 

@@ -5,10 +5,8 @@
  * submits one transaction, so a rejected expression changes nothing.
  */
 
-import { DAG } from "@badag/dag";
-import type { AnyNodeDefinition } from "@badag/dag";
-import { canonicalStringify } from "@badag/graph";
-import type { GraphEdge } from "@badag/graph";
+import { canonicalStringify, DAG } from "@badag/core";
+import type { AnyNodeDefinition, GraphEdge } from "@badag/core";
 
 import { isLabeled, parseNotation } from "./notation";
 import type { NotationOperand, WiringOperand } from "./notation";
@@ -23,7 +21,7 @@ function definitionOf(operand: NotationOperand): AnyNodeDefinition {
 /**
  * A DAG with Airflow-style wiring notation.
  *
- * Everything else is inherited from `@badag/dag`; `parse` is the only dialect
+ * Everything else is inherited from `@badag/core`; `parse` is the only dialect
  * addition to the builder.
  */
 export class AirflowDAG<Key extends string = string> extends DAG<Key> {

@@ -6,9 +6,8 @@
  * serialized spec.
  */
 
-import type { JsonObject } from "@badag/graph";
-import { freezeConfig } from "@badag/graph";
-
+import type { JsonObject } from "../graph";
+import { freezeConfig } from "../graph";
 import type {
     AnySchema,
     Implementation,

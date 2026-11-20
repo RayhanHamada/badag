@@ -26,7 +26,7 @@ Badag is a TypeScript SDK for describing and validating task graphs. Dialects su
 bun add @badag/sdk
 ```
 
-ESM-only, ships declaration files, and bundles the graph, DAG, and Airflow packages. One install covers authoring, compilation, and validation.
+ESM-only, ships declaration files, and bundles the core and Airflow packages. One install covers authoring, compilation, and validation.
 
 ## A graph in 30 seconds
 
@@ -89,7 +89,7 @@ The node key is the only join. A spec loaded from storage and a DAG built in mem
 
 `@badag/airflow` is the first dialect, and the only one that ships today. It supplies the presets, `>>` / `<<` notation, Airflow key convention, and dialect findings documented below.
 
-The graph and task layers contain no Airflow vocabulary: `@badag/graph` owns the spec and structural checks, and `@badag/dag` keys implementations by node. A future dialect — not yet built — can add its own presets, notation, and checks, then compile to the same `GraphSpec` v1. The spec keeps `role`, `triggerRule`, and `retries` as config data, so a future runtime can consume it without a spec change.
+The core graph and task layers contain no Airflow vocabulary: `@badag/core` owns the spec, structural checks, and the implementation registry keyed by node. A future dialect — not yet built — can add its own presets, notation, and checks, then compile to the same `GraphSpec` v1. The spec keeps `role`, `triggerRule`, and `retries` as config data, so a future runtime can consume it without a spec change.
 
 ## Wiring
 
@@ -128,12 +128,11 @@ Roles are config, not new node types: `role` is `compute`, `router`, or `waiter`
 
 | Package | Responsibility |
 | --- | --- |
-| `@badag/graph` | dialect-agnostic nodes, labeled edges, order, cycles, structural findings, the spec |
-| `@badag/dag` | node = key + type + config, implementation registry, `build()` |
+| `@badag/core` | dialect-agnostic graph primitive and DAG builder: nodes, labeled edges, order, cycles, structural findings, the spec, implementation registry, `build()` |
 | `@badag/airflow` | first dialect: six presets, trigger-rule names, `>>` / `<<`, key convention, dialect findings |
 | `@badag/db-schema` | Drizzle schemas: revision-scoped graphs and runs (`main-db`), task executions (`orchestrator-db`) |
-| `@badag/sdk` | the published entry point for the Airflow dialect; bundles `@badag/graph`, `@badag/dag`, and `@badag/airflow` |
+| `@badag/sdk` | the published entry point for the Airflow dialect; bundles `@badag/core` and `@badag/airflow` |
 
 ## Status
 
-Pre-release (`0.0.0`). The SDK is the only published package; the others are source-only workspace packages. Airflow is the only dialect today; `@badag/graph` and `@badag/dag` carry no Airflow vocabulary, and the spec keeps `role`, `triggerRule`, and `retries` as config data, so future dialects can compile to the same spec. `@badag/db-schema` stores revision-scoped graphs: immutable revisions own the serialized spec, node rows, and labeled edges; runs reference a revision; task executions live in a second database. The SDK describes and validates graphs; it does not execute or persist them, and no execution runtime ships yet.
+Pre-release (`0.0.0`). The SDK is the only published package; the others are source-only workspace packages. Airflow is the only dialect today; `@badag/core` carries no Airflow vocabulary, and the spec keeps `role`, `triggerRule`, and `retries` as config data, so future dialects can compile to the same spec. `@badag/db-schema` stores revision-scoped graphs: immutable revisions own the serialized spec, node rows, and labeled edges; runs reference a revision; task executions live in a second database. The SDK describes and validates graphs; it does not execute or persist them, and no execution runtime ships yet.

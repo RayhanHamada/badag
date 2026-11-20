@@ -6,16 +6,17 @@
  * Nothing here executes.
  */
 
-import { defineNode } from "@badag/dag";
+import { defineNode } from "@badag/core";
 import type {
     AnySchema,
+    JsonObject,
+    JsonValue,
     MaybePromise,
     NodeContext,
     NodeDefinition,
     NodePayloadOf,
     NodeProducedOf,
-} from "@badag/dag";
-import type { JsonObject, JsonValue } from "@badag/graph";
+} from "@badag/core";
 
 import { assertAirflowKey, assertRouteLabel } from "./keys";
 import type { TriggerRule } from "./trigger-rule";

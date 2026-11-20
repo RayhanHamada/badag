@@ -1,5 +1,5 @@
 {
-    "name": "@badag/dag",
+    "name": "@badag/core",
     "private": true,
     "type": "module",
     "exports": {
@@ -10,7 +10,6 @@
         "typecheck": "tsc --noEmit"
     },
     "dependencies": {
-        "@badag/graph": "workspace:*",
         "@standard-schema/spec": "^1.1.0"
     },
     "devDependencies": {

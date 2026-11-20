@@ -1,4 +1,4 @@
-import type { Implementation, MaybePromise, NodeContext } from "@badag/dag";
+import type { Implementation, MaybePromise, NodeContext } from "@badag/core";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import { describe, expect, expectTypeOf, it } from "vitest";
 

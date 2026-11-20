@@ -4,11 +4,17 @@ A TypeScript SDK for declaring task graphs through dialects, wiring dependencies
 
 ## Graph model
 
-**DAG**: A directed acyclic graph whose nodes execute work and whose edges are execution dependencies. A DAG definition is data; it does not execute. _Avoid_: workflow, pipeline
+**Core**: The task-agnostic part of Badag: the graph primitive and the DAG builder over it. Dialects and persistence are outside it. _Avoid_: graph package, DAG package, shared library
+
+**Graph**: The task-agnostic structure of nodes and labeled edges, with ordering and structural checks. It does not know roles, presets, or implementations. _Avoid_: topology, network
+
+**DAG**: A directed acyclic graph of nodes and execution dependencies. A DAG definition is data; it does not execute. _Avoid_: workflow, pipeline
+
+**DAG builder**: The mutable authoring form of a DAG, carrying node definitions and implementations until `build()` splits them into a built DAG. _Avoid_: workflow builder, graph editor
+
+**Built DAG**: The immutable result of a DAG builder: a graph spec plus the implementation registry keyed by node key. Later builder changes cannot alter it. _Avoid_: compiled DAG, artifact, bundle
 
 **DAG ID**: The identifier of a DAG. The graph layer requires only a non-empty key; the Airflow convention applies in the dialect. _Avoid_: DAG name, dagName, workflow id
-
-**DAG metadata**: The optional, non-structural part of a DAG — currently a human-readable description. _Avoid_: DAG config, DAG settings
 
 **Graph spec**: The pure-data, versioned description of a graph: spec version, DAG id, revision, nodes, and labeled edges. It is what persists and what a runtime replays. _Avoid_: snapshot, JSON dump, config
 
@@ -22,7 +28,7 @@ A TypeScript SDK for declaring task graphs through dialects, wiring dependencies
 
 **Node type**: The open discriminator a node's config is interpreted under, stored as data. _Avoid_: kind, operator
 
-**Node config**: The JSON object stored on a node in the spec. It carries the node's role, description, activation policy, retry count, and preset-specific keys; the graph layer never interprets it. _Avoid_: node options, settings, metadata
+**Node config**: The JSON object stored on a node in the spec. Its keys are defined by the node's type or dialect; the graph layer stores them opaquely and never interprets them. _Avoid_: node options, settings, metadata
 
 **Node description**: An optional human-readable label carried in node config. It is never identity and never a dependency reference. _Avoid_: name, title, alias, display label
 
@@ -48,7 +54,7 @@ A TypeScript SDK for declaring task graphs through dialects, wiring dependencies
 
 ## Dialects
 
-**Dialect**: An authoring vocabulary and syntax that compiles to the graph spec. It owns presets, notation, key conventions, and dialect findings; the graph layer never interprets it, and the runtime sees only the shared node config contract. _Avoid_: adapter, flavor, frontend
+**Dialect**: An authoring vocabulary and syntax that compiles to the graph spec. It owns presets, notation, key conventions, and dialect findings; core never interprets dialect vocabulary, and the runtime sees only the shared node config contract. _Avoid_: adapter, flavor, frontend
 
 **Preset**: A named authoring form in a dialect that fixes one node type and role and produces a node definition. _Avoid_: task kind, operator, template
 
@@ -66,7 +72,7 @@ The first Badag dialect.
 
 **Payload**: The value a task receives, typed by its input schema. Without an input schema the payload is `undefined`. _Avoid_: argument, params, data
 
-**Input schema**: An optional Standard Schema declared on an implementation that types its payload. It is stored but never applied by the SDK. _Avoid_: validator, parser, params schema
+**Input schema**: An optional Standard Schema declared on an implementation that types its payload. It is never applied by the SDK. _Avoid_: validator, parser, params schema
 
 **Output schema**: An optional Standard Schema declared on an implementation that constrains the value the node produces. A fixed-result preset describes its produced value at the type level without declaring a runtime schema. _Avoid_: result schema, return type
 
@@ -98,7 +104,7 @@ The first Badag dialect.
 
 **Wiring step**: One validated edge between two wiring sets, derived from a wiring expression; `a >> b << c` yields two steps, `a -> b` and `c -> b`. _Avoid_: edge pair, link
 
-**Airflow key convention**: The `validate_key` rule the dialect applies to DAG ids and task ids: Unicode letters and numbers, underscore, dot, and dash only, at most 250 characters, with no whitespace. _Avoid_: id rule, naming rule
+**Airflow key convention**: The `validate_key` rule the dialect applies to DAG ids and node keys: Unicode letters and numbers, underscore, dot, and dash only, at most 250 characters, with no whitespace. _Avoid_: id rule, naming rule
 
 **Duplicate declared branch**: The dialect finding for a branch preset that lists the same route label more than once. A repeated label activates the same edges, so the second listing states nothing. _Avoid_: repeated branch, duplicate branch
 
