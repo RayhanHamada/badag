@@ -7,18 +7,19 @@
 
 <p align="center">
   <strong>Strongly-typed DAGs.</strong><br />
-  Declare tasks, wire dependencies, and catch broken graphs before runtime.
+  Author with a dialect, compile to a versioned spec.
 </p>
 
 <p align="center">
+  <img alt="Tests" src="https://img.shields.io/github/actions/workflow/status/RayhanHamada/badag/ci.yml?label=tests" />
   <img alt="TypeScript strict" src="https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white" />
   <img alt="ESM only" src="https://img.shields.io/badge/module-ESM-F9A03C" />
-  <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-blue" />
+  <img alt="MIT license" src="https://img.shields.io/badge/MIT-license-blue" />
 </p>
 
-Badag is a small TypeScript SDK for describing task graphs. It borrows Airflow's vocabulary — tasks, sensors, delays, branches, short-circuits, triggers — and makes the graph a typed value you can validate, serialize, and hand to a runtime of your choice.
+Badag is a TypeScript SDK for describing and validating task graphs. Dialects supply the authoring vocabulary — the first is Airflow-inspired — and compile to one frozen JSON spec plus a registry of implementations.
 
-> **The graph is the code. Typed tasks, validated wiring.**
+> **The graph is data. Code is keyed by node. Dialects compile to the same graph.**
 
 ## Install
 
@@ -26,11 +27,11 @@ Badag is a small TypeScript SDK for describing task graphs. It borrows Airflow's
 bun add @badag/sdk
 ```
 
-The SDK is ESM-only, ships declaration files, and bundles `@badag/core`, so there is one package to install and no execution engine hiding inside. Using npm or pnpm? `npm install @badag/sdk` and `pnpm add @badag/sdk` work too.
+ESM-only, ships declaration files, and bundles the core and Airflow packages. One install covers authoring, compilation, and validation.
 
 ## A graph in 30 seconds
 
-A daily pricing job: wait for the vendor drop, extract prices, route by region, and publish after the selected region finishes.
+Using the Airflow dialect, a daily pricing job: wait for the vendor drop, extract prices, route by region, publish after the selected region finishes.
 
 ```mermaid
 graph LR
@@ -43,117 +44,96 @@ graph LR
 ```
 
 ```ts
-import { branch, createDAG, sensor, task } from "@badag/sdk";
+import { branch, check, createDAG, sensor, task } from "@badag/sdk";
 
 const sourceReady = sensor("source-ready", {
-    predicate: async () => (await fetch("https://example.com/prices")).ok,
+    predicate: () => true, // the vendor drop arrived
     pokeIntervalMs: 60_000,
-    description: "Wait for the vendor drop",
 });
-
 const extract = task("extract", {
-    fn: async () => (await fetch("https://example.com/prices")).json(),
+    run: async () => [
+        { region: "us", price: 120 },
+        { region: "eu", price: 110 },
+    ],
 });
-
 const route = branch("route", {
-    branches: ["us", "eu"],
+    branches: ["us", "eu"] as const,
     choose: () => (process.env.REGION === "eu" ? "eu" : "us"),
 });
-
-const us = task("us", { fn: () => "priced US" });
-const eu = task("eu", { fn: () => "priced EU" });
-const publish = task("publish", { fn: () => "published" });
+const us = task("us", { run: () => "priced US" });
+const eu = task("eu", { run: () => "priced EU" });
+const publish = task("publish", {
+    triggerRule: "none_failed_min_one_success",
+    run: () => "published",
+});
 
 const pricing = createDAG("daily-pricing")
     .parse`${sourceReady} >> ${extract} >> ${route}`
-    .parse`${route} >> ${[us, eu]}` // must name exactly the declared branches
-    .parse`${[us, eu]} >> ${publish}`;
+    .parse`${route} >> ${[us, eu]}`.parse`${[us, eu]} >> ${publish}`;
 
-pricing.validate(); // [] — acyclic, consistent, every branch routed
-pricing.toJSON(); // plain JSON: names, kinds, trigger rules, edges
+check(pricing.spec()); // [] — structural and dialect findings
+
+const { spec, implementations } = pricing.build();
+
+spec.nodes.length; // 6
+implementations.has("publish"); // true
 ```
 
-That's the whole idea. The SDK stores the wiring; your scheduler reads `kind`, `triggerRule`, `upstream`, and `downstream` and decides what actually runs.
+`build()` splits the two channels:
 
-Wiring is all-or-nothing: if one edge in a batch is invalid, the call adds neither tasks nor edges. Repeating the same wiring is idempotent, so composed builders stay safe.
+- The **spec** is pure data — node keys, open types, JSON config, labeled edges, and a content revision. It is frozen, callback-free, and serializable.
+- The **implementations** are build-local code keyed by node key. They never enter the spec.
 
-## Why Badag?
+The node key is the only join. A spec loaded from storage and a DAG built in memory cross the same seams: `check(spec)`, `orderSpec(spec)`, and `build()`.
 
-- **Typed wiring.** When you keep the DAG returned by `parse()`, its type remembers the definitions and declared branch sets added so far. Duplicate task ids and conflicting branch declarations become compile-time errors. Branch routing, cycles, self-dependencies, and cross-DAG handles are rejected when the graph is wired, and `validate()` reports them without throwing.
+## Dialects
 
-- **Transactional, idempotent wiring.** Every batch validates before it commits. A rejected edge leaves the task registry and edge list unchanged, and re-running an existing wiring expression does nothing.
+`@badag/airflow` is the first dialect, and the only one that ships today. It supplies the presets, `>>` / `<<` notation, Airflow key convention, and dialect findings documented below.
 
-- **Airflow familiarity without the platform.** Six task kinds, wiring sets for fan-out and fan-in, and Airflow-style `>>`/`<<` bitshift expressions. No YAML, no webserver, no scheduler to operate.
+The core graph and task layers contain no Airflow vocabulary: `@badag/core` owns the spec, structural checks, and the implementation registry keyed by node. A future dialect — not yet built — can add its own presets, notation, and checks, then compile to the same `GraphSpec` v1. The spec keeps `role`, `triggerRule`, and `retries` as config data, so a future runtime can consume it without a spec change.
 
-- **Validation that reports instead of throws.** `validate()` returns a read-only list of `{ code, subjects, message }` findings and never throws. The codes are a closed set, ready for exhaustive switches in a CI check, API, or graph-rendering UI.
-
-- **Typed payloads from schemas you already use.** `input` types `ctx.payload`; `output` types the produced value. Any Standard Schema works — Zod, Valibot, ArkType, or your own. Badag stores the schemas and leaves validation timing to the runtime.
-
-- **Stable, content-derived task IDs.** A task ID is a synchronous 128-bit FNV-1a hash of the task name and behavior source. Metadata changes do not churn IDs, and the same definition shares an ID across DAGs. The hash uses only platform APIs, so it behaves the same in Node, Bun, browsers, and Cloudflare Workers.
-
-- **Snapshots for free.** `dag.toJSON()` gives you names, IDs, kinds, trigger rules, and edges by name — ready for storage, an API response, or drawing the graph in a UI. Callbacks are omitted, so the snapshot is for inspection, not rehydration.
-
-## Task kinds
-
-Every factory accepts optional `description`, `config`, `triggerRule`, and Standard Schema `input`/`output`. The kind-specific fields are declared here and honored by your runtime.
-
-| Factory | `kind` | Stored behavior | Scheduler's move |
-| --- | --- | --- | --- |
-| `task` | `task` | `fn` | call the callback |
-| `sensor` | `sensor` | `predicate`, `pokeIntervalMs?` | poll until the predicate returns true |
-| `delay` | `delay` | `durationMs` | wait |
-| `branch` | `branch` | `choose`, optional `branches` | run the chosen branch names |
-| `shortCircuit` | `short_circuit` | `condition` | gate downstream work |
-| `trigger` | `trigger` | `dagName`, `waitForCompletion` | start another DAG |
-
-`triggerRule` defaults to `all_success`; the full set of rules is documented in the [core README](packages/core/README.md#trigger-rules).
-
-## Bring your own runtime
-
-Badag describes; it does not execute. It never invokes your callbacks and stores no ready, running, completed, or failed state. Your scheduler owns readiness, retries, persistence, and observability, which keeps the graph portable and the library predictable.
+## Wiring
 
 ```ts
-for (const registered of pricing.topologicalSort()) {
-    console.log(registered.name, registered.definition.kind);
-}
+dag.parse`${a} >> ${b} >> ${c}`; // a -> b -> c
+dag.parse`${a} >> ${b} << ${c}`; // a -> b, c -> b
+dag.parse`${route} >> ${[us, eu]}`; // labeled edges us and eu
+dag.parse`${route} >> ${labeled("us", processUs)}`; // explicit label
 ```
 
-The same graph can be validated in CI, stored as JSON, rendered in an admin UI, and executed by a worker — without any of them sharing scheduler internals.
+An edge **out of a router** defaults to the target's key as its route label. Every other edge is unlabeled. `labeled(label, node)` overrides the default, so a route name never dictates a node's key. Wiring is transactional: a rejected operand, label, edge, or duplicate leaves the DAG unchanged.
 
-## Documentation
+## Presets
 
-- [`packages/core/README.md`](packages/core/README.md) — full API: task kinds, wiring, validation, serialization, and errors.
-- [`packages/sdk/README.md`](packages/sdk/README.md) — the public `@badag/sdk` entry point.
-- [`apps/dashboard/README.md`](apps/dashboard/README.md) — running, developing, and deploying the dashboard.
-- [`GLOSSARY.md`](GLOSSARY.md) — the language used across the codebase.
-- [`docs/adr/`](docs/adr) — architecture decision records.
+Every preset accepts `description`, `config`, and `triggerRule`. `task` also accepts `input` and `output`; `branch`, `sensor`, `shortCircuit`, and `trigger` accept `input`; `delay` declares neither schema.
 
-## Repository
+| Preset | Role | Config | Notes |
+| --- | --- | --- | --- |
+| `task` | compute | — | the work |
+| `branch` | router | `branches` | selects route labels |
+| `sensor` | waiter | `pokeIntervalMs` | predicate and interval |
+| `delay` | waiter | `durationMs` | fixed wait |
+| `shortCircuit` | router | `branches: ["run","skip"]` | two fixed labels |
+| `trigger` | compute | `dagId`, `waitForCompletion` | targets another DAG |
 
-| Path | What it holds |
+Roles are config, not new node types: `role` is `compute`, `router`, or `waiter`. A custom type declares a router by setting `config.role`. `triggerRule` and `retries` are stored as config data for a future runtime; this SDK does not interpret them.
+
+## Findings
+
+`check(spec)` returns structural findings followed by dialect findings, each `{ code, subjects, message }`:
+
+- Structural: `duplicate-node`, `unknown-node`, `self-edge`, `cycle`.
+- Dialect: `invalid-dag-id`, `invalid-node-key`, `duplicate-declared-branch`, `invalid-declared-branch`, `unrouted-branch`, `undeclared-branch-target`, `self-trigger`.
+
+## Packages
+
+| Package | Responsibility |
 | --- | --- |
-| `packages/core` | DAG builder, task factories, audit rules, hashing, serialization |
-| `packages/sdk` | Public `@badag/sdk` package; bundles core for publishing |
-| `packages/db-schema` | Drizzle schemas for the app |
-| `apps/dashboard` | TanStack Start dashboard on Cloudflare Workers |
-| `docs/adr` | Architecture decision records |
+| `@badag/core` | dialect-agnostic graph primitive and DAG builder: nodes, labeled edges, order, cycles, structural findings, the spec, implementation registry, `build()` |
+| `@badag/airflow` | first dialect: six presets, trigger-rule names, `>>` / `<<`, key convention, dialect findings |
+| `@badag/db-schema` | Drizzle schemas: revision-scoped graphs and runs (`main-db`), task executions (`orchestrator-db`) |
+| `@badag/sdk` | the published entry point for the Airflow dialect; bundles `@badag/core` and `@badag/airflow` |
 
-## Development
+## Status
 
-```sh
-bun install
-bun run test
-bun run test:e2e
-bun run check
-bun run build
-```
-
-`bun run test` runs the unit suites through Turbo; `bun run test:e2e` runs the dashboard's Playwright-backed end-to-end suite through Turbo (it boots a Vite dev server on `127.0.0.1:3100` via `e2e/global-setup.ts`).
-
-`bun run check` runs the Ultracite lint and format checks; `bun run fix` applies the fixes.
-
-Each Vitest run writes a JUnit report to `reports/` in its package (`reports/vitest-junit.xml`, `reports/vitest-e2e-junit.xml` for the dashboard e2e suite). Turbo caches that directory as the `test` task output, so a cache hit restores the reports without rerunning the suite. The `reports/` directories are gitignored.
-
-## License
-
-MIT
+Pre-release (`0.0.0`). The SDK is the only published package; the others are source-only workspace packages. Airflow is the only dialect today; `@badag/core` carries no Airflow vocabulary, and the spec keeps `role`, `triggerRule`, and `retries` as config data, so future dialects can compile to the same spec. `@badag/db-schema` stores revision-scoped graphs: immutable revisions own the serialized spec, node rows, and labeled edges; runs reference a revision; task executions live in a second database. The SDK describes and validates graphs; it does not execute or persist them, and no execution runtime ships yet.

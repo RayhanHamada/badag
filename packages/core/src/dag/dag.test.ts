@@ -1,509 +1,181 @@
-import { describe, expect, expectTypeOf, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import type { TaskContext, TaskFn } from "../task/base";
-import { TASK_KIND_ENUM } from "../task/kind";
-import { task as createTask } from "../task/task";
-import type { TaskParamInput, TaskParamOutput } from "../task/task";
-import { DEFAULT_TRIGGER_RULE, TRIGGER_RULE_ENUM } from "../task/trigger-rule";
-import { createDAG, DAG } from "./dag";
-import { DAGTask } from "./registered-task";
-import { DAG_VIOLATION_ENUM } from "./violation";
+import { createDAG } from "./dag";
+import { defineNode } from "./definition";
+import type { AnyNodeDefinition } from "./definition";
 
-function register<const Name extends string, Fn extends TaskFn<Name>>(
-    dag: DAG,
-    definition: TaskParamOutput<Name, Fn>
-): DAGTask<Name> {
-    expect(dag.parse`${definition}`).toBe(dag);
-
-    const task = dag.getTask(definition.id);
-
-    if (task === undefined) {
-        throw new Error(`Task "${definition.id}" was not registered`);
-    }
-
-    return task;
+function node(key: string, type = "task"): AnyNodeDefinition {
+    return defineNode({ key, type, run: () => key });
 }
 
-function addTask<Fn extends TaskFn<string>>(
-    dag: DAG,
-    params: TaskParamInput<Fn> & { id: string }
-): DAGTask {
-    return register(dag, createTask(params.id, params));
-}
+describe("DAG", () => {
+    it("builds a spec and an implementation map", () => {
+        const graph = createDAG("etl");
 
-function requireTask(dag: DAG, id: string): DAGTask {
-    const task = dag.getTask(id);
+        const extract = defineNode({
+            key: "extract",
+            type: "task",
+            run: () => "raw",
+        });
 
-    if (task === undefined) {
-        throw new Error(`Task "${id}" was not registered`);
-    }
+        const load = defineNode({
+            key: "load",
+            type: "task",
+            run: () => "stored",
+        });
 
-    return task;
-}
+        graph.add(extract).add(load).link("extract", "load");
 
-const rawFn = (): string => "raw";
+        const built = graph.build();
 
-// Captures its argument, so reusing the factory yields distinct callbacks.
-const syncTableFn = (table: string) => () => table;
-
-// Callback identity is reference-based, so duplicate definitions must share it.
-const contextFn = (ctx: TaskContext<"scaled">) => ctx.id;
-
-describe("DAG construction", () => {
-    it("keeps a valid Airflow DAG id verbatim", () => {
-        expect(createDAG("etl").dagId).toBe("etl");
-        expect(createDAG("daily-pricing.v2_beta").dagId).toBe(
-            "daily-pricing.v2_beta"
+        expect(built.spec.key).toBe("etl");
+        expect(built.spec.nodes.map((entry) => entry.key)).toStrictEqual([
+            "extract",
+            "load",
+        ]);
+        expect(built.spec.edges).toStrictEqual([
+            { from: "extract", to: "load" },
+        ]);
+        expect(built.implementations.get("extract")).toBe(
+            extract.implementation
         );
     });
 
-    it("stores empty and whitespace-only DAG ids verbatim", () => {
-        expect(createDAG("").dagId).toBe("");
-        expect(createDAG("   ").dagId).toBe("   ");
+    it("keeps a declaration whose implementation is missing", () => {
+        const graph = createDAG("alerts");
+
+        graph.add(defineNode({ key: "notify", type: "trigger" }));
+
+        expect(graph.nodes().has("notify")).toBeTruthy();
+        expect(graph.resolve("notify")).toBeUndefined();
+        expect(graph.build().implementations.size).toBe(0);
     });
 
-    it("reports empty and whitespace-only DAG ids through validate()", () => {
-        for (const dagId of ["", "   "]) {
-            expect(createDAG(dagId).validate()).toStrictEqual([
-                {
-                    code: DAG_VIOLATION_ENUM.InvalidDagId,
-                    message: "DAG id cannot be empty",
-                    subjects: [dagId],
-                },
-            ]);
-        }
+    it("rejects a duplicate even when the first declaration has no code", () => {
+        const graph = createDAG("alerts");
+
+        graph.add(defineNode({ key: "notify", type: "trigger" }));
+
+        expect(() =>
+            graph.add(defineNode({ key: "notify", type: "trigger" }))
+        ).toThrow(/already declared in DAG "alerts"/u);
+        expect(() =>
+            graph.add(
+                defineNode({
+                    key: "notify",
+                    type: "trigger",
+                    run: () => true,
+                })
+            )
+        ).toThrow(/already declared in DAG "alerts"/u);
     });
 
-    it("reports ids outside the Airflow dag_id convention", () => {
-        for (const dagId of [
-            "  etl  ",
-            "etl pricing",
-            "etl/pricing",
-            "etl*",
-            "etl?run",
-        ]) {
-            expect(createDAG(dagId).validate()).toStrictEqual([
-                {
-                    code: DAG_VIOLATION_ENUM.InvalidDagId,
-                    message: `DAG id "${dagId}" must use letters, numbers, ".", "-", or "_"`,
-                    subjects: [dagId],
-                },
-            ]);
-        }
+    it("throws on a duplicate key and keeps the first registration", () => {
+        const graph = createDAG("etl");
+
+        const first = defineNode({
+            key: "extract",
+            type: "task",
+            run: () => 1,
+        });
+
+        graph.add(first);
+
+        expect(() =>
+            graph.add(
+                defineNode({ key: "extract", type: "task", run: () => 2 })
+            )
+        ).toThrow(/Node "extract" is already declared in DAG "etl"/u);
+        expect(graph.nodes().size).toBe(1);
+        expect(graph.resolve("extract")).toBe(first.implementation);
     });
 
-    it("reports DAG ids longer than 250 characters", () => {
-        const dagId = "a".repeat(251);
+    it("throws on a duplicate key inside one batch", () => {
+        const graph = createDAG("etl");
 
-        expect(createDAG(dagId).validate()).toStrictEqual([
+        expect(() => graph.addAll([node("extract"), node("extract")])).toThrow(
+            /already declared/u
+        );
+        expect(graph.nodes().size).toBe(0);
+        expect(graph.resolve("extract")).toBeUndefined();
+    });
+
+    it("rolls back nodes and implementations when an edge is rejected", () => {
+        const graph = createDAG("etl");
+
+        expect(() =>
+            graph.apply({
+                nodes: [node("a"), node("b")],
+                edges: [
+                    { from: "a", to: "b" },
+                    { from: "b", to: "a" },
+                ],
+            })
+        ).toThrow(/cycle/u);
+
+        expect(graph.nodes().size).toBe(0);
+        expect(graph.resolve("a")).toBeUndefined();
+        expect(graph.resolve("b")).toBeUndefined();
+    });
+
+    it("returns undefined for a key with no implementation", () => {
+        expect(createDAG("etl").resolve("ghost")).toBeUndefined();
+    });
+
+    it("keeps an open node type and config untouched", () => {
+        const graph = createDAG("alerts");
+
+        graph.add(
+            defineNode({
+                key: "notify",
+                type: "email",
+                config: { to: "ops@example.com" },
+                run: () => true,
+            })
+        );
+
+        expect(graph.build().spec.nodes).toStrictEqual([
             {
-                code: DAG_VIOLATION_ENUM.InvalidDagId,
-                message: `DAG id "${dagId}" must be at most 250 characters`,
-                subjects: [dagId],
+                key: "notify",
+                type: "email",
+                config: { to: "ops@example.com" },
             },
         ]);
-        expect(createDAG("a".repeat(250)).validate()).toStrictEqual([]);
     });
 
-    it("builds the same DAG through createDAG", () => {
-        const dag = createDAG("etl");
+    it("serializes the spec without callbacks", () => {
+        const graph = createDAG("etl");
 
-        expect(dag).toBeInstanceOf(DAG);
-        expect(dag.dagId).toBe("etl");
-        expectTypeOf(dag).toEqualTypeOf<DAG<"etl">>();
-        expectTypeOf(dag.getTask("extract")).toEqualTypeOf<
-            DAGTask<"extract"> | undefined
-        >();
+        graph.addAll([node("extract"), node("load")]);
+        graph.link("extract", "load");
 
-        const wired = dag.parse`${createTask("extract", { fn: () => "raw" })}`;
+        const built = graph.build();
+        const encoded = JSON.stringify(built.spec);
 
-        expect(wired).toBe(dag);
-        expect(dag.topologicalSort().map((task) => task.id)).toStrictEqual([
-            "extract",
-        ]);
+        expect(encoded).not.toContain('"run"');
+        expect(() => structuredClone(built.spec)).not.toThrow();
+        expect(Object.isFrozen(built.spec)).toBeTruthy();
     });
 
-    it("stores DAG metadata and defaults to an empty object", () => {
-        const metadata = { description: "Nightly pricing" };
-        const dag = createDAG("etl", metadata);
+    it("copies the implementation map at build time", () => {
+        const graph = createDAG("etl");
 
-        expect(dag.metadata).toStrictEqual(metadata);
-        expect(createDAG("etl").metadata).toStrictEqual({});
-        expect(new DAG("etl", metadata).metadata).toStrictEqual(metadata);
-    });
-});
+        graph.add(node("extract"));
 
-describe("DAG registration", () => {
-    it("rejects task id collisions", () => {
-        const dag = createDAG("etl");
+        const built = graph.build();
 
-        addTask(dag, { id: "extract", fn: () => "raw" });
+        graph.add(node("later"));
 
-        expect(() =>
-            addTask(dag, { id: "extract", fn: () => "clean" })
-        ).toThrow(/already exists/u);
+        expect(built.implementations.has("later")).toBeFalsy();
+        expect(graph.resolve("later")).toBeDefined();
     });
 
-    it("treats an identical definition as already registered", () => {
-        const dag = createDAG("etl");
-        const definition = createTask("extract", { fn: () => "raw" });
+    it("is fluent and rejects an unknown endpoint", () => {
+        const graph = createDAG("etl");
 
-        expect(dag.parse`${definition}`.parse`${definition}`).toBe(dag);
+        graph.addAll([node("a"), node("b")]);
 
-        expect(dag.tasks.size).toBe(1);
-    });
-
-    it("keeps the first registration's metadata for a duplicate definition", () => {
-        const dag = createDAG("etl");
-
-        const first = createTask("extract", {
-            fn: rawFn,
-            config: { timeout_ms: 1000 },
-        });
-
-        const second = createTask("extract", {
-            fn: rawFn,
-            description: "second registration",
-            config: { timeout_ms: 9999 },
-            triggerRule: TRIGGER_RULE_ENUM.OneFailed,
-        });
-
-        expect(dag.parse`${first}`.parse`${second}`).toBe(dag);
-
-        const registered = requireTask(dag, "extract");
-
-        expect(dag.tasks.size).toBe(1);
-        expect(registered.config).toStrictEqual({ timeout_ms: 1000 });
-        expect(registered.description).toBeUndefined();
-        expect(registered.triggerRule).toBe(DEFAULT_TRIGGER_RULE);
-    });
-
-    it("rejects a same-id definition that differs only by captured value", () => {
-        const dag = createDAG("warehouse");
-
-        expect(
-            dag.parse`${createTask("sync", { fn: syncTableFn("customers") })}`
-        ).toBe(dag);
-
-        expect(
-            () =>
-                dag.parse`${createTask("sync", { fn: syncTableFn("orders") })}`
-        ).toThrow(/different behavior/u);
-
-        // The rejected registration leaves the graph untouched.
-        const registered = requireTask(dag, "sync");
-        const { definition } = registered;
-
-        expect(dag.tasks.size).toBe(1);
-
-        if (definition.kind !== TASK_KIND_ENUM.Task) {
-            throw new Error(`Expected a regular task, got ${definition.kind}`);
-        }
-
-        expect(
-            definition.fn({
-                id: registered.id,
-                payload: undefined,
-            })
-        ).toBe("customers");
-    });
-
-    it("accepts the surviving definition after rejecting a capture-only duplicate", () => {
-        const definition = createTask("sync", {
-            fn: syncTableFn("customers"),
-        });
-
-        const dag = createDAG("recovery");
-
-        expect(dag.parse`${definition}`).toBe(dag);
-
-        expect(
-            () =>
-                dag.parse`${createTask("sync", { fn: syncTableFn("orders") })}`
-        ).toThrow(/different behavior/u);
-
-        expect(() => dag.parse`${definition}`).not.toThrow();
-        expect(dag.tasks.size).toBe(1);
-    });
-
-    it("rejects a capture-only duplicate introduced through a handle", () => {
-        const dag = createDAG("wiring");
-
-        const sync = addTask(dag, {
-            id: "sync",
-            fn: syncTableFn("customers"),
-        });
-
-        const load = addTask(dag, { id: "load", fn: rawFn });
-
-        sync.setDownstream(load);
-
-        expect(() =>
-            sync.setDownstream(
-                createTask("sync", { fn: syncTableFn("orders") })
-            )
-        ).toThrow(/different behavior/u);
-
-        expect(dag.tasks.size).toBe(2);
-        expect([...sync.downstream]).toStrictEqual([load]);
-    });
-
-    it("rejects edges that cross DAG boundaries", () => {
-        const dag = createDAG("etl");
-        const other = createDAG("other");
-        const task = addTask(dag, { id: "extract", fn: () => "raw" });
-        const outsider = addTask(other, { id: "load", fn: () => "stored" });
-
-        expect(() => task.setDownstream(outsider)).toThrow(
-            /belong to this DAG/u
-        );
-    });
-
-    it("rejects same-DAG handles that are not registered", () => {
-        const dag = createDAG("etl");
-        const definition = createTask("extract", { fn: () => "raw" });
-        const unregistered = new DAGTask(dag, definition);
-        const registered = addTask(dag, { id: "load", fn: () => "stored" });
-
-        expect(() => unregistered.setDownstream(registered)).toThrow(
-            "Both tasks must belong to this DAG"
-        );
-        expect(registered.upstream.size).toBe(0);
-    });
-
-    it("does not expose a raw edge-insertion method", () => {
-        const dag = createDAG("etl");
-        const task = addTask(dag, { id: "extract", fn: () => 0 });
-
-        expect("connectTo" in task).toBeFalsy();
-    });
-
-    it("registers definitions across fluent parse calls", () => {
-        const dag = createDAG("etl");
-        const first = createTask("first", { fn: () => 0 });
-        const second = createTask("second", { fn: () => 0 });
-
-        const wired = dag.parse`${first}`.parse`${second}`;
-
-        expect(wired).toBe(dag);
-        expect([...dag.tasks.keys()]).toStrictEqual(["first", "second"]);
-    });
-
-    it("registers a batch atomically", () => {
-        const dag = createDAG("etl");
-        const first = createTask("first", { fn: () => 0 });
-        const duplicate = createTask("first", { fn: () => 1 });
-
-        expect(() => dag.parse`${[first, duplicate]}`).toThrow(
-            /already exists/u
-        );
-        expect(dag.tasks.size).toBe(0);
-    });
-
-    it("accepts context callbacks", () => {
-        const definition = createTask("scaled", { fn: contextFn });
-
-        const definition2 = createTask("scaled", { fn: contextFn });
-
-        const dag = createDAG("etl");
-
-        expect(dag.parse`${definition}`).toBe(dag);
-        expect(dag.parse`${definition2}`).toBe(dag);
-
-        requireTask(dag, "scaled");
-
-        expect(
-            definition.fn({
-                id: definition.id,
-                payload: undefined,
-            })
-        ).toBe("scaled");
-    });
-
-    it("registers a prebuilt definition under its id", () => {
-        const dag = createDAG("etl");
-        const definition = createTask("extract", { fn: () => "raw" });
-        const handle = register(dag, definition);
-
-        expect(handle.id).toBe("extract");
-        expect(dag.getTask("extract")).toBe(handle);
-        expect(dag.tasks.get("extract")).toBe(handle);
-        expect([...dag.tasks.keys()]).toStrictEqual(["extract"]);
-    });
-
-    it("allows one definition in multiple DAGs", () => {
-        const definition = createTask("extract", { fn: () => "raw" });
-        const first = register(createDAG("first"), definition);
-        const second = register(createDAG("second"), definition);
-
-        expect(first).not.toBe(second);
-        expect(first.id).toBe(second.id);
-    });
-
-    it("returns undefined for unknown ids", () => {
-        const dag = createDAG("etl");
-
-        addTask(dag, { id: "extract", fn: () => "raw" });
-
-        expect(dag.getTask("load")).toBeUndefined();
-    });
-
-    it("stores config on the task by reference", () => {
-        const config = { timeout_ms: 500, retries: 2 };
-        const dag = createDAG("etl");
-        const task = addTask(dag, { id: "extract", fn: () => 0, config });
-
-        expect(task.config).toBe(config);
-    });
-});
-
-describe("dependency edges", () => {
-    it("links every task in an upstream list", () => {
-        const dag = createDAG("etl");
-        const first = addTask(dag, { id: "first", fn: () => 0 });
-        const second = addTask(dag, { id: "second", fn: () => 0 });
-        const sink = addTask(dag, { id: "sink", fn: () => 0 });
-
-        sink.setUpstream([first, second]);
-
-        expect([...sink.upstream]).toStrictEqual([first, second]);
-        expect([...first.downstream]).toStrictEqual([sink]);
-        expect([...second.downstream]).toStrictEqual([sink]);
-    });
-
-    it("rejects self dependencies on the upstream side", () => {
-        const dag = createDAG("etl");
-        const task = addTask(dag, { id: "task", fn: () => 0 });
-
-        expect(() => task.setUpstream(task)).toThrow(
-            "A task cannot depend on itself"
-        );
-    });
-
-    it("rejects edges whose upstream task belongs to another DAG", () => {
-        const dag = createDAG("etl");
-        const other = createDAG("other");
-        const task = addTask(dag, { id: "extract", fn: () => 0 });
-        const outsider = addTask(other, { id: "load", fn: () => 0 });
-
-        expect(() => outsider.setDownstream(task)).toThrow(
-            "Both tasks must belong to this DAG"
-        );
-    });
-
-    it("rejects a deep cycle without recording the rejected edge", () => {
-        const dag = createDAG("etl");
-        const first = addTask(dag, { id: "first", fn: () => 0 });
-        const second = addTask(dag, { id: "second", fn: () => 0 });
-        const third = addTask(dag, { id: "third", fn: () => 0 });
-
-        first.setDownstream(second);
-        second.setDownstream(third);
-
-        expect(() => third.setDownstream(first)).toThrow(
-            'Dependency "third" -> "first" creates a cycle'
-        );
-        expect(third.downstream.size).toBe(0);
-        expect(first.upstream.size).toBe(0);
-    });
-
-    it("registers and wires definitions in one parse call", () => {
-        const dag = createDAG("etl");
-        const first = createTask("first", { fn: () => 0 });
-        const second = createTask("second", { fn: () => 0 });
-
-        expect(dag.parse`${first} >> ${second}`).toBe(dag);
-
-        const upstream = dag.getTask("first");
-        const downstream = dag.getTask("second");
-
-        expect([...(upstream?.downstream ?? [])]).toStrictEqual([downstream]);
-        expect([...(downstream?.upstream ?? [])]).toStrictEqual([upstream]);
-    });
-
-    it("registers definitions passed to edge methods", () => {
-        const dag = createDAG("etl");
-        const first = register(dag, createTask("first", { fn: () => 0 }));
-        const second = createTask("second", { fn: () => 0 });
-
-        first.setDownstream(second);
-
-        expect(dag.tasks.size).toBe(2);
-        expect([...(dag.getTask("second")?.upstream ?? [])]).toStrictEqual([
-            first,
-        ]);
-    });
-
-    it("registers definitions passed to addDependency", () => {
-        const dag = createDAG("etl");
-        const first = createTask("first", { fn: () => 0 });
-        const second = createTask("second", { fn: () => 0 });
-
-        dag.addDependency(first, second);
-
-        const firstTask = dag.getTask("first");
-        const secondTask = dag.getTask("second");
-
-        expect([...(firstTask?.downstream ?? [])]).toStrictEqual([secondTask]);
-    });
-
-    it("links every pair through addDependencies", () => {
-        const dag = createDAG("etl");
-        const first = addTask(dag, { id: "first", fn: () => 0 });
-        const second = addTask(dag, { id: "second", fn: () => 0 });
-        const sink = addTask(dag, { id: "sink", fn: () => 0 });
-
-        dag.addDependencies([first, second], sink);
-
-        expect([...first.downstream]).toStrictEqual([sink]);
-        expect([...second.downstream]).toStrictEqual([sink]);
-        expect([...sink.upstream]).toStrictEqual([first, second]);
-    });
-
-    it("keeps a failed upstream batch unchanged", () => {
-        const dag = createDAG("etl");
-        const first = addTask(dag, { id: "first", fn: () => 0 });
-        const second = addTask(dag, { id: "second", fn: () => 0 });
-        const sink = addTask(dag, { id: "sink", fn: () => 0 });
-
-        sink.setDownstream(second);
-
-        expect(() => sink.setUpstream([first, second])).toThrow(
-            /creates a cycle/u
-        );
-        expect(first.downstream.size).toBe(0);
-        expect(sink.upstream.size).toBe(0);
-        expect(second.downstream.has(sink)).toBeFalsy();
-    });
-
-    it("keeps a failed downstream batch unchanged", () => {
-        const dag = createDAG("etl");
-        const first = addTask(dag, { id: "first", fn: () => 0 });
-        const second = addTask(dag, { id: "second", fn: () => 0 });
-        const sink = addTask(dag, { id: "sink", fn: () => 0 });
-
-        sink.setDownstream(second);
-
-        expect(() => second.setDownstream([first, sink])).toThrow(
-            /creates a cycle/u
-        );
-        expect(second.downstream.size).toBe(0);
-        expect(first.upstream.size).toBe(0);
-        expect(sink.upstream.has(second)).toBeFalsy();
-    });
-
-    it("rolls back definitions registered by a failed edge batch", () => {
-        const dag = createDAG("etl");
-        const second = addTask(dag, { id: "second", fn: () => 0 });
-        const sink = addTask(dag, { id: "sink", fn: () => 0 });
-        const fresh = createTask("fresh", { fn: () => 0 });
-
-        sink.setDownstream(second);
-
-        expect(() => sink.setUpstream([fresh, second])).toThrow(
-            /creates a cycle/u
-        );
-        expect(dag.getTask("fresh")).toBeUndefined();
-        expect(sink.upstream.size).toBe(0);
+        expect(graph.link("a", "b")).toBe(graph);
+        expect(() => graph.link("a", "ghost")).toThrow(/not registered/u);
     });
 });

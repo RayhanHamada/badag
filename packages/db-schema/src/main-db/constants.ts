@@ -3,8 +3,8 @@
 // Column length limits. SQLite does not enforce these; they document the
 // application-level contract and are available for input validation.
 export const DAG_NAME_MAX_LENGTH = 100;
+export const DAG_REVISION_MAX_LENGTH = 64;
 export const DAG_TASK_KEY_MAX_LENGTH = 100;
-export const DAG_TASK_NAME_MAX_LENGTH = 150;
 export const DAG_TASK_TYPE_MAX_LENGTH = 50;
 
 // Lifecycle of a single DAG execution.

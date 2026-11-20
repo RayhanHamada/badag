@@ -92,22 +92,18 @@ export const dagSchema = v.object({
 export const dagTaskSchema = v.object({
     id: v.pipe(v.number(), v.integer(), v.minValue(1)),
     dagId: v.pipe(v.number(), v.integer(), v.minValue(1)),
+    revisionId: v.pipe(v.number(), v.integer(), v.minValue(1)),
     key: v.pipe(
         v.string(),
         v.minLength(1),
         v.maxLength(dagConstants.DAG_TASK_KEY_MAX_LENGTH),
-        v.description("Stable identifier used in dependency references.")
-    ),
-    name: v.pipe(
-        v.string(),
-        v.minLength(1),
-        v.maxLength(dagConstants.DAG_TASK_NAME_MAX_LENGTH)
+        v.description("Declared node key; stable across builds.")
     ),
     type: v.pipe(
         v.string(),
         v.minLength(1),
         v.maxLength(dagConstants.DAG_TASK_TYPE_MAX_LENGTH),
-        v.description("Task kind.")
+        v.description("Node type.")
     ),
     config: jsonObject,
     createdAt: timestamp,
@@ -116,15 +112,29 @@ export const dagTaskSchema = v.object({
 
 export const dagEdgeSchema = v.object({
     dagId: v.pipe(v.number(), v.integer(), v.minValue(1)),
+    revisionId: v.pipe(v.number(), v.integer(), v.minValue(1)),
     fromTaskId: v.pipe(v.number(), v.integer(), v.minValue(1)),
     toTaskId: v.pipe(v.number(), v.integer(), v.minValue(1)),
+    label: v.pipe(
+        v.string(),
+        v.description("Route label; empty means unlabeled.")
+    ),
     createdAt: timestamp,
 });
 
 export const dagRunSchema = v.object({
     id: v.pipe(v.number(), v.integer(), v.minValue(1)),
     dagId: v.pipe(v.number(), v.integer(), v.minValue(1)),
-    currentTaskId: v.pipe(v.number(), v.integer(), v.minValue(1)),
+    revisionId: v.nullable(
+        v.pipe(
+            v.number(),
+            v.integer(),
+            v.minValue(1),
+            v.description(
+                "Graph revision this run executes; null for legacy runs."
+            )
+        )
+    ),
     status: dagRunStatusSchema,
     triggerType: dagRunTriggerSchema,
     runKey: v.nullable(
@@ -145,7 +155,20 @@ export const dagRunSchema = v.object({
 
 export const taskExecutionSchema = v.object({
     id: v.pipe(v.number(), v.integer(), v.minValue(1)),
-    taskId: v.pipe(v.number(), v.integer(), v.minValue(1)),
+    dagRunId: v.pipe(
+        v.number(),
+        v.integer(),
+        v.minValue(1),
+        v.description(
+            "Run this execution belongs to, by value across databases."
+        )
+    ),
+    taskKey: v.pipe(
+        v.string(),
+        v.minLength(1),
+        v.maxLength(taskConstants.TASK_KEY_MAX_LENGTH),
+        v.description("Declared node key from the graph spec.")
+    ),
     status: taskExecutionStatusSchema,
     attempt: v.pipe(v.number(), v.integer(), v.minValue(0)),
     input: nullableJsonObject,
@@ -322,6 +345,12 @@ export const updateDagBodySchema = v.object({
 });
 
 export const createDagTasksBodySchema = v.object({
+    revisionId: v.pipe(
+        v.number(),
+        v.integer(),
+        v.minValue(1),
+        v.description("Graph revision the tasks belong to.")
+    ),
     tasks: v.pipe(
         v.array(
             v.object({
@@ -329,20 +358,13 @@ export const createDagTasksBodySchema = v.object({
                     v.string(),
                     v.minLength(1),
                     v.maxLength(dagConstants.DAG_TASK_KEY_MAX_LENGTH),
-                    v.description(
-                        "Stable identifier used in dependency references."
-                    )
-                ),
-                name: v.pipe(
-                    v.string(),
-                    v.minLength(1),
-                    v.maxLength(dagConstants.DAG_TASK_NAME_MAX_LENGTH)
+                    v.description("Declared node key; stable across builds.")
                 ),
                 type: v.pipe(
                     v.string(),
                     v.minLength(1),
                     v.maxLength(dagConstants.DAG_TASK_TYPE_MAX_LENGTH),
-                    v.description("Task kind.")
+                    v.description("Node type.")
                 ),
                 config: v.optional(jsonObject),
             })
@@ -352,8 +374,17 @@ export const createDagTasksBodySchema = v.object({
 });
 
 export const createDagEdgeBodySchema = v.object({
+    revisionId: v.pipe(
+        v.number(),
+        v.integer(),
+        v.minValue(1),
+        v.description("Graph revision the edge belongs to.")
+    ),
     fromTaskId: v.pipe(v.number(), v.integer(), v.minValue(1)),
     toTaskId: v.pipe(v.number(), v.integer(), v.minValue(1)),
+    label: v.optional(
+        v.pipe(v.string(), v.description("Route label; empty means unlabeled."))
+    ),
 });
 
 export const triggerDagRunBodySchema = v.object({

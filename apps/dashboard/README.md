@@ -69,7 +69,7 @@ Declared in `cloudflare.config.ts`:
 
 | Binding | Type | Use |
 | --- | --- | --- |
-| `MAIN_DB` | D1 | DAGs, tasks, edges, and runs |
+| `MAIN_DB` | D1 | DAGs, revisions, tasks, edges, and runs |
 | `LOADER` | Worker loader | Loads generated tenant workflow modules |
 | `TASK_ORCHESTRATOR_DO` | Durable Object (`TaskOrchestratorDO`) | Orchestrator state in Durable Object SQLite |
 | `DYNAMIC_WORKFLOW` | Workflow (`DynamicWorkflow`) | Single dispatcher Workflow that runs every tenant's code |
@@ -137,4 +137,4 @@ Vitest drives Playwright against a Vite dev server that `e2e/global-setup.ts` bo
 
 ## Repository
 
-Part of the [Badag](../../README.md) workspace. The DAG SDK it manages lives in [`packages/sdk`](../../packages/sdk/README.md) and [`packages/core`](../../packages/core/README.md).
+Part of the [Badag](../../README.md) workspace. The DAG SDK it manages lives in [`packages/sdk`](../../packages/sdk/README.md).

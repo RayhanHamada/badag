@@ -1,87 +1,40 @@
-export { createDAG, DAG } from "./dag/dag";
-
-export type { DAGMetadata } from "./dag/dag";
-
-export { crossDownstream } from "./dag/registered-task";
-
-export { DAG_VIOLATION_ENUM } from "./dag/violation";
-
-export type { DAGViolation, DAGViolationCode } from "./dag/violation";
-
-export type { WiringOperand } from "./dag/wiring";
-
 export {
-    branch,
-    delay,
-    sensor,
-    shortCircuit,
-    task,
-    TASK_KIND_ENUM,
-    trigger,
-} from "./task";
-
-export type { DAGTask, TaskLike, TaskOrTasks } from "./dag/registered-task";
-
-export type {
-    BranchTaskJson,
-    DAGJson,
-    DelayTaskJson,
-    SensorTaskJson,
-    ShortCircuitTaskJson,
-    TaskJson,
-    TaskJsonBase,
-    TaskJsonTask,
-    TriggerTaskJson,
-} from "./dag/serialization";
+    canonicalStringify,
+    checkSpec,
+    createGraph,
+    freezeConfig,
+    GRAPH_FINDING_CODE,
+    Graph,
+    orderSpec,
+    SPEC_VERSION,
+} from "./graph";
 
 export type {
-    AnyBranchTaskDefinition,
-    AnyDelayTaskDefinition,
+    GraphChange,
+    GraphCheckInput,
+    GraphEdge,
+    GraphFinding,
+    GraphFindingCode,
+    GraphNode,
+    GraphNodeInput,
+    GraphSpec,
+    JsonObject,
+    JsonValue,
+} from "./graph";
+
+export { createDAG, DAG, defineNode } from "./dag";
+
+export type {
+    AnyImplementation,
+    AnyNodeDefinition,
     AnySchema,
-    AnySensorTaskDefinition,
-    AnyShortCircuitTaskDefinition,
-    AnyTaskDefinition,
-    AnyTaskFn,
-    AnyTriggerTaskDefinition,
-    BranchChoice,
-    BranchChooser,
-    BranchTaskDefinition,
-    BranchTaskInput,
-    CreateBranch,
-    CreateDelay,
-    CreateSensor,
-    CreateShortCircuit,
-    CreateTask,
-    CreateTrigger,
-    DAGId,
-    DAGIdRegistry,
-    DelayTaskDefinition,
-    DelayTaskInput,
+    BuiltDAG,
+    DAGChange,
+    Implementation,
     MaybePromise,
-    RegisteredTaskDefinition,
-    SchemaOf,
-    SensorPredicate,
-    SensorTaskDefinition,
-    SensorTaskInput,
-    ShortCircuitCondition,
-    ShortCircuitTaskDefinition,
-    ShortCircuitTaskInput,
-    TaskConfig,
-    TaskContext,
-    TaskDefinitionBase,
-    TaskFn,
-    TaskKind,
-    TaskMetadata,
-    TaskParamInput,
-    TaskParamOutput,
-    TaskPayloadOf,
-    TaskProducedOf,
-    TaskSchema,
-    TaskSchemas,
-    TriggerTaskDefinition,
-    TriggerTaskInput,
-} from "./task";
-
-export { TRIGGER_RULE_ENUM } from "./task/trigger-rule";
-
-export type { TriggerRule } from "./task/trigger-rule";
+    NodeContext,
+    NodeDefinition,
+    NodeDefinitionInput,
+    NodePayloadOf,
+    NodeProducedOf,
+} from "./dag";

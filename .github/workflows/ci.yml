@@ -4,7 +4,6 @@ on:
     push:
         # Main only receives merges after CI passed, so it is not re-run there.
         branches-ignore: [main]
-    pull_request:
     workflow_dispatch:
 
 concurrency:

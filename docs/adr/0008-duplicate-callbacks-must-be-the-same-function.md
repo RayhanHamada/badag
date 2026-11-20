@@ -1,6 +1,6 @@
 # Duplicate callbacks must be the same function instance
 
-**Status**: Partly superseded by [ADR 0009](0009-task-id-is-declared.md). Task ids are declared, not hash-derived; duplicate callable definitions still must share a callback instance.
+**Status**: Superseded by [ADR 0010](0010-graph-spec-and-implementations-are-separate-channels.md) for duplicate handling: implementations are registered separately from the spec, so a duplicate node key is an error regardless of callback identity. Identity itself was already declared by [ADR 0009](0009-task-id-is-declared.md).
 
 A duplicate definition is reused only when its callable behavior is the same function reference. Two definitions in one DAG that share an id but hold different callback instances are rejected at registration instead of silently deduplicated.
 

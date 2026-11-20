@@ -1,18 +1,28 @@
 # @badag/sdk
 
-The Badag SDK entry point. It exports `createDAG`, every task factory, the task kind enum, and the task authoring types. Wiring, validation, and serialization live in the internal [`@badag/core`](../core/README.md) package.
+The published entry point for the Airflow dialect and the shared core graph/task stack. It re-exports the Airflow authoring surface, the task layer, and the graph spec types and findings, so one install covers authoring, compilation, and validation.
 
-Inside this repository, core is imported from source and passed to `createDAG`. The SDK build bundles it, so `@badag/core` is not a runtime dependency of the published package.
+Airflow is the first dialect; the graph spec and implementation registry are dialect-agnostic. A future dialect can ship its own authoring surface and compile to `GraphSpec` v1. No second dialect exists yet.
+
+The core and Airflow packages are source-only and are bundled into this package at build time; neither is an external dependency of the published artifact.
 
 ```ts
-import { createDAG, delay, task } from "@badag/sdk";
+import { check, createDAG, task } from "@badag/sdk";
 
-const extract = task("extract", { fn: () => "raw" });
-const settle = delay("settle", { durationMs: 100 });
-const load = task("load", { fn: () => "stored" });
+const extract = task("extract", { run: () => 42 });
+const load = task("load", { run: () => "stored" });
 
-const dag = createDAG("etl").parse`${extract} >> ${settle} >> ${load}`;
+const dag = createDAG("etl").parse`${extract} >> ${load}`;
+
+check(dag.spec()); // [] — structural and dialect findings
+
+const { spec, implementations } = dag.build();
+
+spec.nodes.map((node) => node.key); // ["extract", "load"]
+implementations.has("load"); // true
 ```
+
+`build()` separates the serializable spec from build-local implementations. The SDK does not execute either channel.
 
 ## Install
 
@@ -20,32 +30,21 @@ const dag = createDAG("etl").parse`${extract} >> ${settle} >> ${load}`;
 bun add @badag/sdk
 ```
 
-`sdk` is ESM-only and ships declaration files. `createDAG(dagId, metadata?)` preserves the literal Airflow-style DAG id in its return type, so the `parse()` checks from `@badag/core` apply unchanged.
+ESM-only, ships declaration files, includes `@standard-schema/spec` for schema typing.
 
-## API
+## Surface
 
-| Export | Kind | Summary |
+| Export | From | Summary |
 | --- | --- | --- |
-| `createDAG` | function | `createDAG(dagId, metadata?)` returns a `DAG` |
-| `task`, `delay`, `branch`, `sensor`, `shortCircuit`, `trigger` | functions | Build a task definition of any kind |
-| `TASK_KIND_ENUM` | object | Supported task kind values |
-| Task types | types | Task definitions, factory inputs/outputs, schemas, context, metadata, and trigger rules |
+| `AirflowDAG`, `createDAG`, `task`, `branch`, `sensor`, `delay`, `shortCircuit`, `trigger` | `@badag/airflow` | First dialect: authoring surface |
+| `labeled`, `TRIGGER_RULE_ENUM`, `DEFAULT_TRIGGER_RULE`, `AIRFLOW_FINDING_CODE`, `isAirflowKey`, `check`, `checkAirflow` | `@badag/airflow` | Routing overrides, policies, key convention, findings |
+| `defineNode` | `@badag/core` | A node with typed schemas and an optional implementation |
+| `checkSpec`, `GRAPH_FINDING_CODE`, `canonicalStringify` | `@badag/core` | Structural findings and canonical JSON |
 
-Task types cover every kind:
+Type exports cover `GraphSpec`, `NodeDefinition`, `Implementation`, `BuiltDAG`, `TriggerRule`, and the rest of the public contracts.
 
-```ts
-import type {
-    BranchTaskDefinition,
-    CreateTask,
-    DAGMetadata,
-    TaskContext,
-    TaskDefinitionBase,
-    TaskFn,
-    TaskKind,
-    TriggerRule,
-} from "@badag/sdk";
-```
+## Build
 
-## License
+`sdk` is a Bun workspace package. `bun run build` bundles the internal packages with `tsdown`; `bun run test` checks the public surface and the authoring/build flow.
 
-MIT
+The package is pre-release (`0.0.0`). It describes and validates graphs; it does not execute them or persist them. The persistence schema lives in the source-only `@badag/db-schema` package.

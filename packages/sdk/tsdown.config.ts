@@ -1,14 +1,13 @@
 import { defineConfig } from "tsdown";
 
 export default defineConfig({
-    // Core is an internal source package, so it is inlined into the SDK
-    // bundle instead of being published as a runtime dependency.
+    tsconfig: "tsconfig.build.json",
+    // The internal packages are source-only, so the SDK inlines them into the
+    // published bundle instead of publishing them as runtime dependencies.
     deps: {
-        alwaysBundle: ["@badag/core"],
+        alwaysBundle: ["@badag/airflow", "@badag/core"],
         onlyBundle: ["@standard-schema/spec"],
     },
-    dts: {
-        generator: "tsgo",
-    },
+    dts: true,
     exports: true,
 });

@@ -1,5 +1,7 @@
 # Branch tasks name their branches instead of holding them
 
+**Status**: Superseded by [ADR 0012](0012-routing-is-route-selection-plus-activation-policy.md). Routing is a route label on an edge plus an activation policy; a branch no longer requires its downstream task ids to equal its declared branch names.
+
 A branch task declares the branch names a scheduler may follow in a `branches` set of plain strings, and `DAG.chain()` plus every edge method enforce that the wiring step directly after the branch routes to exactly those names. The alternative — passing the intended downstream tasks as objects into `branches` — was rejected: it would let a task contain other tasks, invert identity (a parent's id would name its children), and erase child behavior from the declaration.
 
 ## Consequences
