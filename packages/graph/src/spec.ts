@@ -81,3 +81,60 @@ export interface GraphSpec {
      */
     readonly edges: readonly GraphEdge[];
 }
+
+// Config crosses the API typed as JsonValue, but JavaScript callers can pass
+// non-JSON values. These checks are the boundary that keeps a spec JSON-real:
+// every object and array is copied and frozen, and non-finite numbers,
+// functions, and undefined are rejected.
+// oxlint-disable anti-slop/no-runtime-typeof
+// oxlint-disable eslint/no-use-before-define -- freezeValue and freezeRecord are mutually recursive.
+function freezeValue(value: JsonValue): JsonValue {
+    if (value === null) {
+        return null;
+    }
+
+    if (Array.isArray(value)) {
+        return Object.freeze(value.map((entry) => freezeValue(entry)));
+    }
+
+    if (typeof value === "object") {
+        return freezeRecord(value);
+    }
+
+    if (typeof value === "number" && !Number.isFinite(value)) {
+        throw new TypeError("Config numbers must be finite");
+    }
+
+    if (
+        typeof value !== "string" &&
+        typeof value !== "boolean" &&
+        typeof value !== "number"
+    ) {
+        throw new TypeError(
+            `Config values must be JSON; received ${typeof value}`
+        );
+    }
+
+    return value;
+}
+// oxlint-enable anti-slop/no-runtime-typeof
+
+function freezeRecord(record: JsonObject): JsonObject {
+    const copy: Record<string, JsonValue> = {};
+
+    for (const [key, value] of Object.entries(record)) {
+        copy[key] = freezeValue(value);
+    }
+
+    return Object.freeze(copy);
+}
+
+/**
+ * Copy a config to any depth and freeze every object and array in the copy.
+ *
+ * A caller keeps no shared reference into an stored spec, and a non-JSON value
+ * is rejected here instead of silently canonicalizing to `null`.
+ */
+export function freezeConfig(config?: JsonObject): JsonObject {
+    return freezeRecord(config ?? {});
+}

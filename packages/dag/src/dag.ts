@@ -82,10 +82,7 @@ export class DAG<Key extends string = string> {
         const batch = new Set<string>();
 
         for (const definition of definitions) {
-            if (
-                this.#implementations.has(definition.key) ||
-                batch.has(definition.key)
-            ) {
+            if (this.#graph.has(definition.key) || batch.has(definition.key)) {
                 throw new Error(
                     `Node "${definition.key}" is already declared in DAG "${this.#key}"`
                 );

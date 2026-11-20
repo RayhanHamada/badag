@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { createGraph } from "./graph";
 import type { Graph } from "./graph";
-import type { GraphNodeInput } from "./spec";
+import type { GraphNodeInput, JsonObject } from "./spec";
 import { SPEC_VERSION } from "./spec";
 
 const REVISION = /^[0-9a-f]{16}$/u;
@@ -222,6 +222,46 @@ describe("graph builder", () => {
         ]);
 
         expect(left.spec().revision).toBe(right.spec().revision);
+    });
+
+    it("freezes config at every level and rejects non-finite numbers", () => {
+        const config = { nested: { retries: 2 }, list: [1, 2] };
+        const graph = createGraph("g");
+
+        graph.addNodes([{ key: "a", type: "task", config }]);
+
+        const before = graph.spec().revision;
+
+        config.nested.retries = 5;
+        config.list.push(3);
+
+        expect(graph.spec().revision).toBe(before);
+        expect(
+            Object.isFrozen(graph.nodes().get("a")?.config.nested)
+        ).toBeTruthy();
+        expect(() =>
+            graph.addNodes([
+                { key: "b", type: "task", config: { value: Number.NaN } },
+            ])
+        ).toThrow(/finite/u);
+    });
+
+    it("rejects a non-JSON config value", () => {
+        const graph = createGraph("g");
+        // @ts-expect-error a function is not JSON; the guard is the point.
+        const invalid: JsonObject = { value: () => 1 };
+
+        expect(() =>
+            graph.addNodes([{ key: "a", type: "task", config: invalid }])
+        ).toThrow(/JSON/u);
+    });
+
+    it("returns copies from node, edge, and neighbor reads", () => {
+        const graph = complexGraph();
+
+        expect(graph.nodes()).not.toBe(graph.nodes());
+        expect(graph.edges()).not.toBe(graph.edges());
+        expect(graph.upstream("join")).not.toBe(graph.upstream("join"));
     });
 
     it("freezes nodes and edges and copies the spec arrays", () => {

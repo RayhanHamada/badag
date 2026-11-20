@@ -8,7 +8,7 @@ export type { GraphChange } from "./graph";
 
 export { orderSpec } from "./order";
 
-export { SPEC_VERSION } from "./spec";
+export { SPEC_VERSION, freezeConfig } from "./spec";
 
 export type {
     GraphEdge,

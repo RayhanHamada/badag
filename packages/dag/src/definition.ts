@@ -7,6 +7,7 @@
  */
 
 import type { JsonObject } from "@badag/graph";
+import { freezeConfig } from "@badag/graph";
 
 import type {
     AnySchema,
@@ -102,7 +103,7 @@ export function defineNode<
     return Object.freeze({
         key: input.key,
         type: input.type,
-        config: Object.freeze({ ...input.config }),
+        config: freezeConfig(input.config),
         implementation:
             input.run === undefined
                 ? undefined

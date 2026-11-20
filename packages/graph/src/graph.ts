@@ -11,7 +11,7 @@ import { checkSpec } from "./check";
 import type { GraphFinding } from "./check";
 import { orderSpec } from "./order";
 import { canonicalStringify, revisionOf } from "./revision";
-import { SPEC_VERSION } from "./spec";
+import { SPEC_VERSION, freezeConfig } from "./spec";
 import type { GraphEdge, GraphNode, GraphNodeInput, GraphSpec } from "./spec";
 
 /** One atomic mutation: nodes to add and edges to link. */
@@ -19,9 +19,6 @@ export interface GraphChange {
     readonly nodes?: readonly GraphNodeInput[];
     readonly edges?: readonly GraphEdge[];
 }
-
-/** Returned for an isolated node so reads allocate nothing. */
-const NO_NEIGHBORS: ReadonlySet<string> = new Set();
 
 function assertKey(key: string, label: string): void {
     if (key.trim() === "") {
@@ -46,7 +43,7 @@ function freezeNode(entry: GraphNodeInput): GraphNode {
     return Object.freeze({
         key: entry.key,
         type: entry.type,
-        config: Object.freeze({ ...entry.config }),
+        config: freezeConfig(entry.config),
     });
 }
 
@@ -153,14 +150,19 @@ export class Graph {
         }
     }
 
+    /** Whether a node key is registered. */
+    has(key: string): boolean {
+        return this.#nodes.has(key);
+    }
+
     /** Nodes in insertion order, keyed by their key. */
     nodes(): ReadonlyMap<string, GraphNode> {
-        return this.#nodes;
+        return new Map(this.#nodes);
     }
 
     /** Edges in insertion order. */
     edges(): readonly GraphEdge[] {
-        return this.#edges;
+        return [...this.#edges];
     }
 
     /** Nodes that must finish before this node runs. */
@@ -222,7 +224,7 @@ export class Graph {
         const neighbors = adjacency.get(key);
 
         if (neighbors !== undefined) {
-            return neighbors;
+            return new Set(neighbors);
         }
 
         if (!this.#nodes.has(key)) {
@@ -231,7 +233,7 @@ export class Graph {
             );
         }
 
-        return NO_NEIGHBORS;
+        return new Set();
     }
 
     /** Plan nodes: validate keys and reject conflicts before writing. */

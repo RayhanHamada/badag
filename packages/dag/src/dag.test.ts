@@ -51,6 +51,25 @@ describe("DAG", () => {
         expect(graph.build().implementations.size).toBe(0);
     });
 
+    it("rejects a duplicate even when the first declaration has no code", () => {
+        const graph = createDAG("alerts");
+
+        graph.add(defineNode({ key: "notify", type: "trigger" }));
+
+        expect(() =>
+            graph.add(defineNode({ key: "notify", type: "trigger" }))
+        ).toThrow(/already declared in DAG "alerts"/u);
+        expect(() =>
+            graph.add(
+                defineNode({
+                    key: "notify",
+                    type: "trigger",
+                    run: () => true,
+                })
+            )
+        ).toThrow(/already declared in DAG "alerts"/u);
+    });
+
     it("throws on a duplicate key and keeps the first registration", () => {
         const graph = createDAG("etl");
 

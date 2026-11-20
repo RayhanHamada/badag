@@ -65,6 +65,16 @@ describe("node definitions", () => {
         expect(implementation.output).toBe(output);
     });
 
+    it("freezes config at every level", () => {
+        const node = defineNode({
+            key: "a",
+            type: "task",
+            config: { nested: { retries: 2 } },
+        });
+
+        expect(Object.isFrozen(node.config.nested)).toBeTruthy();
+    });
+
     it("rejects an empty key or type", () => {
         expect(() =>
             defineNode({ key: " ", type: "task", run: () => 1 })
