@@ -1,5 +1,9 @@
 [workspace]
 members = ["crates/*"]
+# Fixture crates must never join the workspace. Cargo matches `exclude`
+# literally (it does not expand globs), but a directory here also excludes
+# everything nested beneath it, so list each `fixtures` root.
+exclude = ["crates/badag-cli/tests/fixtures"]
 resolver = "3"
 
 [workspace.package]

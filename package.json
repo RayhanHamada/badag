@@ -4,7 +4,8 @@
     "workspaces": [
         "apps/*",
         "packages/*",
-        "examples/*"
+        "examples/*",
+        "!**/fixtures/**"
     ],
     "type": "module",
     "scripts": {
