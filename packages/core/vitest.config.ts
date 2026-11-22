@@ -9,6 +9,7 @@ export default defineConfig({
         },
         typecheck: {
             enabled: true,
+            checker: "tsrs",
             include: ["**/*.test.ts"],
         },
     },

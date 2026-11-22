@@ -7,13 +7,13 @@
     },
     "scripts": {
         "test": "vitest run",
-        "typecheck": "tsc --noEmit"
+        "typecheck": "tsrs --noEmit --fast"
     },
     "dependencies": {
         "@standard-schema/spec": "^1.1.0"
     },
     "devDependencies": {
-        "typescript": "7.1.0-beta",
+        "tsrs": "^7.1.0-beta.tsrs4",
         "vitest": "^5.0.5"
     }
 }

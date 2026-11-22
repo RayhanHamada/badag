@@ -10,11 +10,9 @@
         "lefthook": "^2.2.2",
         "oxfmt": "^0.79.0",
         "oxlint": "^1.94.0",
+        "tsrs": "^7.1.0-beta.tsrs4",
         "turbo": "^2.11.13",
         "ultracite": "^8.3.1",
-      },
-      "peerDependencies": {
-        "typescript": "7.1.0-beta",
       },
     },
     "apps/dashboard": {
@@ -71,7 +69,6 @@
         "drizzle-kit": "^0.31.11",
         "playwright": "^1.65.0",
         "tsrs": "^7.1.0-beta.tsrs4",
-        "typescript": "^7.1.0-beta",
         "vite": "^8.3.8",
         "vitest": "^5.1.1",
       },
@@ -83,7 +80,7 @@
       },
       "devDependencies": {
         "@types/bun": "^1.4.4",
-        "typescript": "7.1.0-beta",
+        "tsrs": "^7.1.0-beta.tsrs4",
       },
     },
     "packages/core": {
@@ -92,7 +89,7 @@
         "@standard-schema/spec": "^1.1.0",
       },
       "devDependencies": {
-        "typescript": "7.1.0-beta",
+        "tsrs": "^7.1.0-beta.tsrs4",
         "vitest": "^5.0.5",
       },
     },
@@ -103,12 +100,15 @@
         "@standard-schema/spec": "^1.1.0",
       },
       "devDependencies": {
-        "typescript": "7.1.0-beta",
+        "tsrs": "^7.1.0-beta.tsrs4",
         "vitest": "^5.0.5",
       },
     },
     "packages/db-schema": {
       "name": "@badag/db-schema",
+      "devDependencies": {
+        "tsrs": "^7.1.0-beta.tsrs4",
+      },
       "peerDependencies": {
         "drizzle-orm": "^0.45.4",
       },
@@ -121,6 +121,7 @@
         "@badag/dag-airflow": "workspace:*",
         "bumpp": "^12.3.0",
         "tsdown": "^0.23.1",
+        "tsrs": "^7.1.0-beta.tsrs4",
         "typescript": "7.1.0-beta",
         "vitest": "^5.0.5",
       },
