@@ -2,7 +2,7 @@
 
 **Status**: accepted
 
-`@badag/core` owns the task-agnostic graph primitive and DAG builder. `@badag/graph` and `@badag/dag` are merged into it. `@badag/airflow` remains a separate dialect, and `@badag/sdk` bundles both.
+`@badag/core` owns the task-agnostic graph primitive and DAG builder. `@badag/graph` and `@badag/dag` are merged into it. `@badag/dag-airflow` remains a separate dialect, and `@badag/sdk` bundles both.
 
 ## Context
 
@@ -17,8 +17,8 @@ ADR 0011 split the stack into `graph`, `dag`, `airflow`, and `sdk` to make the d
 - Merge `@badag/graph` and `@badag/dag` into `@badag/core`.
 - Keep the layers as `src/graph` and `src/dag` with one dependency direction: `dag` may import `graph`, never the reverse.
 - Export both layers from the package root.
-- `@badag/airflow` depends on `@badag/core` only.
-- `@badag/sdk` bundles `@badag/core` and `@badag/airflow`.
+- `@badag/dag-airflow` depends on `@badag/core` only.
+- `@badag/sdk` bundles `@badag/core` and `@badag/dag-airflow`.
 - Remove the old package names. No compatibility shims.
 
 ## Consequences
@@ -31,5 +31,5 @@ ADR 0011 split the stack into `graph`, `dag`, `airflow`, and `sdk` to make the d
 ## Considered options
 
 - **Keep both packages and add `@badag/core` as an aggregate.** Rejected: it increases the package count instead of reducing it, and the aggregate would be a pass-through.
-- **Merge `@badag/airflow` into core.** Rejected: Airflow vocabulary changes independently and must remain swappable for future dialects.
+- **Merge `@badag/dag-airflow` into core.** Rejected: Airflow vocabulary changes independently and must remain swappable for future dialects.
 - **Move graph and dag into `@badag/sdk`.** Rejected: the dialect depends on core, and the SDK is the publisher, not the core implementation.

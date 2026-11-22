@@ -5,5 +5,5 @@
         "declaration": true,
         "emitDeclarationOnly": true
     },
-    "include": ["src", "../core/src", "../airflow/src"]
+    "include": ["src", "../core/src", "../dag-airflow/src"]
 }

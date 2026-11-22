@@ -1,4 +1,4 @@
-# @badag/airflow
+# @badag/dag-airflow
 
 The first Badag dialect, layered over `@badag/core`. It adds six node presets, trigger-rule names, the `>>` / `<<` wiring notation, the `validate_key` convention, and dialect findings. It compiles to the same graph spec as everything else: no Airflow concept leaks into `@badag/core`, and future dialects can target that same spec.
 
@@ -13,7 +13,7 @@ import {
     shortCircuit,
     task,
     trigger,
-} from "@badag/airflow";
+} from "@badag/dag-airflow";
 ```
 
 ## Presets are roles
