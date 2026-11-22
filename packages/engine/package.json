@@ -28,11 +28,15 @@
     },
     "devDependencies": {
         "@badag/core": "workspace:*",
-        "tsdown": "^0.23.1",
+        "tsdown": "^0.23.7",
         "tsrs": "^7.1.0-beta.tsrs4",
         "typescript": "7.1.0-beta"
     },
     "inlinedDependencies": {
         "@standard-schema/spec": "1.1.0"
+    },
+    "dependencies": {
+        "@rivetkit/cloudflare-workers": "^2.3.31",
+        "rivetkit": "^3.1.1"
     }
 }

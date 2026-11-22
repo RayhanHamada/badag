@@ -27,5 +27,8 @@
         "turbo": "^2.11.13",
         "ultracite": "^8.3.1"
     },
-    "packageManager": "bun@1.4.4"
+    "packageManager": "bun@1.4.4",
+    "dependencies": {
+        "@rivet-dev/workflows": "^1.1.1"
+    }
 }
