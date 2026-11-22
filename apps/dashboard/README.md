@@ -38,7 +38,7 @@ Run `bun db:clean-generate` only when the schema is unreleased, then `bun db:mig
 | `build` | `cf build` → Build Output in `.cloudflare/output/` |
 | `preview` | `vite preview` of an existing build |
 | `deploy` | `cf deploy`, build and upload to Cloudflare |
-| `typecheck` | `cf workers types` then `tsc` |
+| `typecheck` | `cf workers types` then `tsrs --noEmit --fast` |
 | `generate-routes` | Regenerate `src/routeTree.gen.ts` with `tsr` |
 | `db:generate` | Generate Drizzle SQL for both databases into `migrations/` |
 | `db:clean-generate` | Delete `migrations/` and regenerate both databases |

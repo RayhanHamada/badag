@@ -24,7 +24,7 @@
         "build": "tsdown",
         "dev": "tsdown --watch",
         "test": "vitest run",
-        "typecheck": "tsc --noEmit",
+        "typecheck": "tsrs --noEmit --fast",
         "release": "bumpp",
         "prepublishOnly": "bun run build"
     },
@@ -33,6 +33,7 @@
         "@badag/dag-airflow": "workspace:*",
         "bumpp": "^12.3.0",
         "tsdown": "^0.23.1",
+        "tsrs": "^7.1.0-beta.tsrs4",
         "typescript": "7.1.0-beta",
         "vitest": "^5.0.5"
     },

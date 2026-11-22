@@ -12,6 +12,7 @@
         "test:e2e": {
             "dependsOn": ["^build"],
             "outputs": ["reports/**"]
-        }
+        },
+        "typecheck": {}
     }
 }

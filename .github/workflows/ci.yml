@@ -57,6 +57,9 @@ jobs:
             - name: Format and lint
               run: bun run check
 
+            - name: Typecheck
+              run: bun run typecheck
+
             - name: Unit tests
               run: bun run test
 
