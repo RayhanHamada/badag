@@ -1,5 +1,5 @@
 {
-    "name": "@badag/airflow",
+    "name": "@badag/dag-airflow",
     "private": true,
     "type": "module",
     "exports": {

@@ -29,8 +29,8 @@
         "prepublishOnly": "bun run build"
     },
     "devDependencies": {
-        "@badag/airflow": "workspace:*",
         "@badag/core": "workspace:*",
+        "@badag/dag-airflow": "workspace:*",
         "bumpp": "^12.3.0",
         "tsdown": "^0.23.1",
         "typescript": "7.1.0-beta",

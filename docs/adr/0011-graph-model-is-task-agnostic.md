@@ -4,7 +4,7 @@
 
 > Packaging update: ADR 0014 merges `@badag/graph` and `@badag/dag` into `@badag/core`. The task-agnostic layering below still applies.
 
-`@badag/core` becomes three packages with one dependency direction. `@badag/graph` holds nodes, labeled edges, adjacency, ordering, cycle rejection, structural findings, and the spec. `@badag/dag` adds a task layer: a node carries a key, an open type, config, and an implementation reference. `@badag/airflow` holds the Airflow vocabulary: six node presets, trigger-rule names, `>>` / `<<`, the `validate_key` id convention, and branch routing. Only `@badag/sdk` is published, and it re-exports the composition.
+`@badag/core` becomes three packages with one dependency direction. `@badag/graph` holds nodes, labeled edges, adjacency, ordering, cycle rejection, structural findings, and the spec. `@badag/dag` adds a task layer: a node carries a key, an open type, config, and an implementation reference. `@badag/dag-airflow` holds the Airflow vocabulary: six node presets, trigger-rule names, `>>` / `<<`, the `validate_key` id convention, and branch routing. Only `@badag/sdk` is published, and it re-exports the composition.
 
 Node roles are three: **compute**, **router**, and **waiter**. Airflow's six task kinds are presets over those roles, not core categories.
 

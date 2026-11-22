@@ -119,4 +119,4 @@ Without an input schema `ctx.payload` is `undefined`; without an output schema t
 
 ## Boundaries
 
-Core does not know what a `type` means, what a label selects, or whether a node executes. Presets and notation belong to `@badag/airflow`; execution is not part of this stack yet.
+Core does not know what a `type` means, what a label selects, or whether a node executes. Presets and notation belong to `@badag/dag-airflow`; execution is not part of this stack yet.

@@ -86,10 +86,9 @@
         "typescript": "7.1.0-beta",
       },
     },
-    "packages/airflow": {
-      "name": "@badag/airflow",
+    "packages/core": {
+      "name": "@badag/core",
       "dependencies": {
-        "@badag/core": "workspace:*",
         "@standard-schema/spec": "^1.1.0",
       },
       "devDependencies": {
@@ -97,9 +96,10 @@
         "vitest": "^5.0.5",
       },
     },
-    "packages/core": {
-      "name": "@badag/core",
+    "packages/dag-airflow": {
+      "name": "@badag/dag-airflow",
       "dependencies": {
+        "@badag/core": "workspace:*",
         "@standard-schema/spec": "^1.1.0",
       },
       "devDependencies": {
@@ -117,8 +117,8 @@
       "name": "@badag/sdk",
       "version": "0.0.0",
       "devDependencies": {
-        "@badag/airflow": "workspace:*",
         "@badag/core": "workspace:*",
+        "@badag/dag-airflow": "workspace:*",
         "bumpp": "^12.3.0",
         "tsdown": "^0.23.1",
         "typescript": "7.1.0-beta",
@@ -185,9 +185,9 @@
 
     "@babel/types": ["@babel/types@7.29.11", "", { "dependencies": { "@babel/helper-string-parser": "^7.29.11", "@babel/helper-validator-identifier": "^7.29.7" } }, "sha512-WCsemW40Cpc6gouC1SrY6PBaZ+oLRlEVY9XBvZBI7il/HyUrb2nJ505wE1MHEFyDZNnrWDEuy4jL50WVHfTTSQ=="],
 
-    "@badag/airflow": ["@badag/airflow@workspace:packages/airflow"],
-
     "@badag/core": ["@badag/core@workspace:packages/core"],
+
+    "@badag/dag-airflow": ["@badag/dag-airflow@workspace:packages/dag-airflow"],
 
     "@badag/dashboard": ["@badag/dashboard@workspace:apps/dashboard"],
 
