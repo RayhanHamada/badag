@@ -28,4 +28,4 @@ export type TriggerRule =
     (typeof TRIGGER_RULE_ENUM)[keyof typeof TRIGGER_RULE_ENUM];
 
 /** Applied by the runtime when a node omits `triggerRule`. */
-export const DEFAULT_TRIGGER_RULE = TRIGGER_RULE_ENUM.AllSuccess;
+export const DEFAULT_TRIGGER_RULE: TriggerRule = TRIGGER_RULE_ENUM.AllSuccess;

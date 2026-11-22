@@ -1,0 +1,22 @@
+{
+    "compilerOptions": {
+        "target": "esnext",
+        "lib": ["es2023", "dom"],
+        "moduleDetection": "force",
+        "module": "preserve",
+        "moduleResolution": "bundler",
+        "resolveJsonModule": true,
+        "types": [],
+        "strict": true,
+        "noUnusedLocals": true,
+        "noEmit": true,
+        "esModuleInterop": true,
+        "isolatedModules": true,
+        "verbatimModuleSyntax": true,
+        "skipLibCheck": true,
+        // Core is imported from source, so both trees share one program.
+        "rootDir": ".."
+    },
+    "include": ["src", "@badag/core"],
+    "exclude": ["../core/src/**/*.test.ts"]
+}

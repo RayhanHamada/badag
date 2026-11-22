@@ -10,7 +10,8 @@
 export const AIRFLOW_KEY_MAX_LENGTH = 250;
 
 /** Airflow's key pattern: letters, numbers, "_", ".", and "-". */
-export const AIRFLOW_KEY_PATTERN = /^[\p{L}\p{N}_.-]+$/u;
+// oxlint-disable-next-line typescript/no-inferrable-types -- isolatedDeclarations requires the annotation
+export const AIRFLOW_KEY_PATTERN: RegExp = /^[\p{L}\p{N}_.-]+$/u;
 
 /**
  * The problem with a key, or `undefined` when it follows the convention.

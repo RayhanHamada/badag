@@ -113,6 +113,16 @@
         "drizzle-orm": "^0.45.4",
       },
     },
+    "packages/engine": {
+      "name": "@badag/engine",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@badag/core": "workspace:*",
+        "tsdown": "^0.23.1",
+        "tsrs": "^7.1.0-beta.tsrs4",
+        "typescript": "7.1.0-beta",
+      },
+    },
     "packages/sdk": {
       "name": "@badag/sdk",
       "version": "0.0.0",
@@ -207,6 +217,8 @@
     "@badag/dashboard": ["@badag/dashboard@workspace:apps/dashboard"],
 
     "@badag/db-schema": ["@badag/db-schema@workspace:packages/db-schema"],
+
+    "@badag/engine": ["@badag/engine@workspace:packages/engine"],
 
     "@badag/playground": ["@badag/playground@workspace:examples/playground"],
 
