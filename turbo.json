@@ -13,6 +13,8 @@
             "dependsOn": ["^build"],
             "outputs": ["reports/**"]
         },
-        "typecheck": {}
+        "typecheck": {
+            "dependsOn": ["^build"]
+        }
     }
 }
