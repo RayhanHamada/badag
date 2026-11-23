@@ -10,6 +10,7 @@
     "type": "module",
     "scripts": {
         "build": "turbo run build",
+        "build:watch": "turbo watch build",
         "test": "turbo run test",
         "test:e2e": "turbo run test:e2e",
         "typecheck": "turbo run typecheck",
