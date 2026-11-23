@@ -126,6 +126,20 @@
         "vitest": "^5.0.5",
       },
     },
+    "packages/vite": {
+      "name": "@badag/vite",
+      "version": "0.0.0",
+      "devDependencies": {
+        "bumpp": "^12.3.0",
+        "tsdown": "^0.23.1",
+        "tsrs": "^7.1.0-beta.tsrs4",
+        "typescript": "7.1.0-beta",
+        "vite": "^8.3.8",
+      },
+      "peerDependencies": {
+        "vite": "^8.0.0",
+      },
+    },
   },
   "packages": {
     "@babel/code-frame": ["@babel/code-frame@7.29.7", "", { "dependencies": { "@babel/helper-validator-identifier": "^7.29.7", "js-tokens": "^4.0.0", "picocolors": "^1.1.1" } }, "sha512-Aup7aUOfpbAUg2ROOJN6Iw5f9DMBlzu0mIkm/malLQFN/YQgO48wCj0Kxa3sEHJvPVFg7siR+qRInwXd2qhQKw=="],
@@ -197,6 +211,8 @@
     "@badag/playground": ["@badag/playground@workspace:examples/playground"],
 
     "@badag/sdk": ["@badag/sdk@workspace:packages/sdk"],
+
+    "@badag/vite": ["@badag/vite@workspace:packages/vite"],
 
     "@base-ui/react": ["@base-ui/react@1.9.0", "", { "dependencies": { "@babel/runtime": "^7.29.7 || ^8.0.0", "@base-ui/utils": "0.5.0", "@floating-ui/react-dom": "^2.1.9", "@floating-ui/utils": "^0.2.12", "use-sync-external-store": "^1.7.0" }, "peerDependencies": { "@date-fns/tz": "^1.2.0", "@types/react": "^17 || ^18 || ^19", "date-fns": "^4.0.0", "react": "^17 || ^18 || ^19", "react-dom": "^17 || ^18 || ^19" }, "optionalPeers": ["@date-fns/tz", "@types/react", "date-fns"] }, "sha512-S8CSYosASBKtpL8SWUfS78rFElfLijiCgA7oHOK22jCJ95FULsYyKwBNFOgudt0RA+/7yNc7F81bOvQnRgbBiQ=="],
 
