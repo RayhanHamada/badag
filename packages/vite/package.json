@@ -1,0 +1,40 @@
+{
+    "name": "@badag/vite",
+    "version": "0.0.0",
+    "description": "Badag Vite plugin",
+    "homepage": "https://github.com/author/library#readme",
+    "bugs": {
+        "url": "https://github.com/author/library/issues"
+    },
+    "license": "MIT",
+    "author": "Rayhan Hamada <rayhanhamada1999@gmail.com>",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/author/library.git"
+    },
+    "files": [
+        "dist"
+    ],
+    "type": "module",
+    "exports": {
+        ".": "./dist/index.mjs",
+        "./package.json": "./package.json"
+    },
+    "scripts": {
+        "build": "tsdown",
+        "dev": "tsdown --watch",
+        "typecheck": "tsrs --noEmit --fast",
+        "release": "bumpp",
+        "prepublishOnly": "bun run build"
+    },
+    "devDependencies": {
+        "bumpp": "^12.3.0",
+        "tsdown": "^0.23.1",
+        "tsrs": "^7.1.0-beta.tsrs4",
+        "typescript": "7.1.0-beta",
+        "vite": "^8.3.8"
+    },
+    "peerDependencies": {
+        "vite": "^8.0.0"
+    }
+}

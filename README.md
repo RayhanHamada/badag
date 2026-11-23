@@ -133,7 +133,8 @@ Roles are config, not new node types: `role` is `compute`, `router`, or `waiter`
 | `@badag/dag-airflow` | first dialect: six presets, trigger-rule names, `>>` / `<<`, key convention, dialect findings |
 | `@badag/db-schema` | Drizzle schemas: revision-scoped graphs and runs (`main-db`), task executions (`orchestrator-db`) |
 | `@badag/sdk` | the published entry point for the Airflow dialect; bundles `@badag/core` and `@badag/dag-airflow` |
+| `@badag/vite` | published Vite plugin; hook-free for now |
 
 ## Status
 
-Pre-release (`0.0.0`). The SDK is the only published package; the others are source-only workspace packages. Airflow is the only dialect today; `@badag/core` carries no Airflow vocabulary, and the spec keeps `role`, `triggerRule`, and `retries` as config data, so future dialects can compile to the same spec. `@badag/db-schema` stores revision-scoped graphs: immutable revisions own the serialized spec, node rows, and labeled edges; runs reference a revision; task executions live in a second database. The SDK describes and validates graphs; it does not execute or persist them, and no execution runtime ships yet.
+Pre-release (`0.0.0`). The SDK and the Vite plugin are the published packages; the others are source-only workspace packages. Airflow is the only dialect today; `@badag/core` carries no Airflow vocabulary, and the spec keeps `role`, `triggerRule`, and `retries` as config data, so future dialects can compile to the same spec. `@badag/db-schema` stores revision-scoped graphs: immutable revisions own the serialized spec, node rows, and labeled edges; runs reference a revision; task executions live in a second database. The SDK describes and validates graphs; it does not execute or persist them, and no execution runtime ships yet.
