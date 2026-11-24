@@ -36,8 +36,8 @@ ESM-only, ships declaration files, includes `@standard-schema/spec` for schema t
 
 | Export | From | Summary |
 | --- | --- | --- |
-| `AirflowDAG`, `createDAG`, `task`, `branch`, `sensor`, `delay`, `shortCircuit`, `trigger` | `@badag/dag-airflow` | First dialect: authoring surface |
-| `labeled`, `TRIGGER_RULE_ENUM`, `DEFAULT_TRIGGER_RULE`, `AIRFLOW_FINDING_CODE`, `isAirflowKey`, `check`, `checkAirflow` | `@badag/dag-airflow` | Routing overrides, policies, key convention, findings |
+| `AirflowDAG`, `createDAG`, `task`, `branch`, `sensor`, `delay`, `shortCircuit`, `trigger` | `@badag/dialect-airflow` | First dialect: authoring surface |
+| `labeled`, `TRIGGER_RULE_ENUM`, `DEFAULT_TRIGGER_RULE`, `AIRFLOW_FINDING_CODE`, `isAirflowKey`, `check`, `checkAirflow` | `@badag/dialect-airflow` | Routing overrides, policies, key convention, findings |
 | `defineNode` | `@badag/core` | A node with typed schemas and an optional implementation |
 | `checkSpec`, `GRAPH_FINDING_CODE`, `canonicalStringify` | `@badag/core` | Structural findings and canonical JSON |
 
