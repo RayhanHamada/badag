@@ -13,7 +13,7 @@
         "@standard-schema/spec": "^1.1.0"
     },
     "devDependencies": {
-        "tsrs": "^7.1.0-beta.tsrs4",
+        "tsrs": "^7.1.0-beta.tsrs5",
         "vitest": "^5.0.5"
     }
 }

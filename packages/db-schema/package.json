@@ -10,7 +10,7 @@
         "typecheck": "tsrs --noEmit --fast"
     },
     "devDependencies": {
-        "tsrs": "^7.1.0-beta.tsrs4"
+        "tsrs": "^7.1.0-beta.tsrs5"
     },
     "peerDependencies": {
         "drizzle-orm": "^0.45.4"
