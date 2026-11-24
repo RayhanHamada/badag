@@ -93,17 +93,6 @@
         "vitest": "^5.0.5",
       },
     },
-    "packages/dag-airflow": {
-      "name": "@badag/dag-airflow",
-      "dependencies": {
-        "@badag/core": "workspace:*",
-        "@standard-schema/spec": "^1.1.0",
-      },
-      "devDependencies": {
-        "tsrs": "^7.1.0-beta.tsrs4",
-        "vitest": "^5.0.5",
-      },
-    },
     "packages/db-schema": {
       "name": "@badag/db-schema",
       "devDependencies": {
@@ -113,12 +102,23 @@
         "drizzle-orm": "^0.45.4",
       },
     },
+    "packages/dialect-airflow": {
+      "name": "@badag/dialect-airflow",
+      "dependencies": {
+        "@badag/core": "workspace:*",
+        "@standard-schema/spec": "^1.1.0",
+      },
+      "devDependencies": {
+        "tsrs": "^7.1.0-beta.tsrs4",
+        "vitest": "^5.0.5",
+      },
+    },
     "packages/sdk": {
       "name": "@badag/sdk",
       "version": "0.0.0",
       "devDependencies": {
         "@badag/core": "workspace:*",
-        "@badag/dag-airflow": "workspace:*",
+        "@badag/dialect-airflow": "workspace:*",
         "bumpp": "^12.3.0",
         "tsdown": "^0.23.1",
         "tsrs": "^7.1.0-beta.tsrs4",
@@ -202,11 +202,11 @@
 
     "@badag/core": ["@badag/core@workspace:packages/core"],
 
-    "@badag/dag-airflow": ["@badag/dag-airflow@workspace:packages/dag-airflow"],
-
     "@badag/dashboard": ["@badag/dashboard@workspace:apps/dashboard"],
 
     "@badag/db-schema": ["@badag/db-schema@workspace:packages/db-schema"],
+
+    "@badag/dialect-airflow": ["@badag/dialect-airflow@workspace:packages/dialect-airflow"],
 
     "@badag/playground": ["@badag/playground@workspace:examples/playground"],
 

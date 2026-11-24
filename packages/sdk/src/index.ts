@@ -14,7 +14,7 @@ export {
     task,
     trigger,
     TRIGGER_RULE_ENUM,
-} from "@badag/dag-airflow";
+} from "@badag/dialect-airflow";
 
 export type {
     AirflowFinding,
@@ -42,7 +42,7 @@ export type {
     TriggerOptions,
     TriggerRule,
     WiringOperand,
-} from "@badag/dag-airflow";
+} from "@badag/dialect-airflow";
 
 export {
     canonicalStringify,
