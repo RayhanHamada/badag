@@ -104,7 +104,7 @@ describe("DAG", () => {
         const graph = createDAG("etl");
 
         expect(() =>
-            graph.apply({
+            graph._apply({
                 nodes: [node("a"), node("b")],
                 edges: [
                     { from: "a", to: "b" },

@@ -46,12 +46,12 @@ export class DAG<Key extends string = string> {
 
     /** Register one definition. */
     add(definition: AnyNodeDefinition): this {
-        return this.apply({ nodes: [definition] });
+        return this._apply({ nodes: [definition] });
     }
 
     /** Register several definitions as one transaction. */
     addAll(definitions: readonly AnyNodeDefinition[]): this {
-        return this.apply({ nodes: definitions });
+        return this._apply({ nodes: definitions });
     }
 
     /**
@@ -73,10 +73,13 @@ export class DAG<Key extends string = string> {
     /**
      * Register definitions and edges as one transaction.
      *
+     * Internal: `add`, `addAll`, and dialect builders call it; consumers use
+     * those methods instead.
+     *
      * A duplicate node key throws before anything is written, in this DAG or
      * in the same batch. A graph-level rejection leaves the registry untouched.
      */
-    apply(change: DAGChange): this {
+    _apply(change: DAGChange): this {
         const definitions = change.nodes ?? [];
         const batch = new Set<string>();
 
@@ -90,7 +93,7 @@ export class DAG<Key extends string = string> {
             batch.add(definition.key);
         }
 
-        this.#graph.apply({
+        this.#graph._apply({
             nodes: definitions.map((definition) => ({
                 key: definition.key,
                 type: definition.type,
