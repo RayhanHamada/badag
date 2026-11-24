@@ -66,7 +66,9 @@ implementations.get("extract"); // extract.implementation
 
 ## Mutations are transactions
 
-`addNodes`, `add`, `addAll`, `link`, and `apply` plan the whole change, validate it, then write. A rejected batch leaves no node, edge, or implementation behind. Edges are identified by `(from, to, label)`, so repeated wiring is a no-op.
+`addNodes`, `add`, `addAll`, and `link` plan the whole change, validate it, then write. A rejected batch leaves no node, edge, or implementation behind. Edges are identified by `(from, to, label)`, so repeated wiring is a no-op.
+
+`Graph._apply` and `DAG._apply` are the internal transaction primitives behind those methods; the underscore marks them as unsupported for direct use.
 
 - A node key is non-empty and unique. Re-adding an identical node is idempotent; re-adding the same key with a different type or config throws.
 - An edge endpoint must exist, cannot be its own endpoint, and cannot close a cycle.

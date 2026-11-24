@@ -91,7 +91,7 @@ export class Graph {
 
     /** Add nodes as one transaction. */
     addNodes(entries: readonly GraphNodeInput[]): void {
-        this.apply({ nodes: entries });
+        this._apply({ nodes: entries });
     }
 
     /**
@@ -124,17 +124,20 @@ export class Graph {
             }
         }
 
-        this.apply({ edges });
+        this._apply({ edges });
     }
 
     /**
      * Apply nodes and edges as one transaction.
      *
+     * Internal: `addNodes`, `link`, and the DAG builder call it; consumers use
+     * those methods instead.
+     *
      * A node already present is reused when its type and config are unchanged
      * and rejected otherwise. An edge already present is skipped. Any
      * rejection leaves nothing from this call behind.
      */
-    apply(change: GraphChange): void {
+    _apply(change: GraphChange): void {
         const plannedNodes = this.#planNodes(change.nodes ?? []);
         const plannedEdges = this.#planEdges(plannedNodes, change.edges ?? []);
 

@@ -13,7 +13,7 @@ function rawSpec(
 ): GraphSpec {
     const graph = createRawGraph(key);
 
-    graph.apply({ nodes, edges });
+    graph._apply({ nodes, edges });
 
     return graph.spec();
 }

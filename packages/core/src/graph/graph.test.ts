@@ -82,7 +82,7 @@ describe("graph builder", () => {
         const graph = createGraph("g");
 
         expect(() =>
-            graph.apply({
+            graph._apply({
                 nodes: [task("a"), task("b")],
                 edges: [
                     { from: "a", to: "b" },

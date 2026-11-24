@@ -85,7 +85,7 @@ export class AirflowDAG<Key extends string = string> extends DAG<Key> {
             }
         }
 
-        this.apply({
+        this._apply({
             nodes: this.#freshDefinitions(parsed.operands),
             edges,
         });
