@@ -33,7 +33,7 @@
         "@badag/dag-airflow": "workspace:*",
         "bumpp": "^12.3.0",
         "tsdown": "^0.23.1",
-        "tsrs": "^7.1.0-beta.tsrs4",
+        "tsrs": "^7.1.0-beta.tsrs5",
         "typescript": "7.1.0-beta",
         "vitest": "^5.0.5"
     },

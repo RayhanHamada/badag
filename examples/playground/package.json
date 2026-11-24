@@ -13,6 +13,6 @@
     },
     "devDependencies": {
         "@types/bun": "^1.4.4",
-        "tsrs": "^7.1.0-beta.tsrs4"
+        "tsrs": "^7.1.0-beta.tsrs5"
     }
 }

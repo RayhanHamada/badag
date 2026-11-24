@@ -60,17 +60,17 @@
         "zod": "^4.6.7"
     },
     "devDependencies": {
-        "@cloudflare/vite-plugin": "rc",
+        "@cloudflare/vite-plugin": "^2.0.0-rc.5",
         "@tanstack/devtools-vite": "0.8.7",
         "@tanstack/router-cli": "^1.168.0",
         "@types/node": "latest",
         "@types/react": "^19.2.0",
         "@types/react-dom": "^19.2.0",
         "@vitejs/plugin-react": "^6.3.0",
-        "cf": "^1.0.0-rc.2",
+        "cf": "^1.0.0-rc.5",
         "drizzle-kit": "^0.31.11",
         "playwright": "^1.65.0",
-        "tsrs": "^7.1.0-beta.tsrs4",
+        "tsrs": "^7.1.0-beta.tsrs5",
         "vite": "^8.3.8",
         "vitest": "^5.1.1"
     },
