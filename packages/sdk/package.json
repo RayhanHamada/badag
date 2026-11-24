@@ -30,7 +30,7 @@
     },
     "devDependencies": {
         "@badag/core": "workspace:*",
-        "@badag/dag-airflow": "workspace:*",
+        "@badag/dialect-airflow": "workspace:*",
         "bumpp": "^12.3.0",
         "tsdown": "^0.23.1",
         "tsrs": "^7.1.0-beta.tsrs4",

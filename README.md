@@ -88,7 +88,7 @@ The node key is the only join. A spec loaded from storage and a DAG built in mem
 
 ## Dialects
 
-`@badag/dag-airflow` is the first dialect, and the only one that ships today. It supplies the presets, `>>` / `<<` notation, Airflow key convention, and dialect findings documented below.
+`@badag/dialect-airflow` is the first dialect, and the only one that ships today. It supplies the presets, `>>` / `<<` notation, Airflow key convention, and dialect findings documented below.
 
 The core graph and task layers contain no Airflow vocabulary: `@badag/core` owns the spec, structural checks, and the implementation registry keyed by node. A future dialect — not yet built — can add its own presets, notation, and checks, then compile to the same `GraphSpec` v1. The spec keeps `role`, `triggerRule`, and `retries` as config data, so a future runtime can consume it without a spec change.
 
@@ -130,9 +130,9 @@ Roles are config, not new node types: `role` is `compute`, `router`, or `waiter`
 | Package | Responsibility |
 | --- | --- |
 | `@badag/core` | dialect-agnostic graph primitive and DAG builder: nodes, labeled edges, order, cycles, structural findings, the spec, implementation registry, `build()` |
-| `@badag/dag-airflow` | first dialect: six presets, trigger-rule names, `>>` / `<<`, key convention, dialect findings |
+| `@badag/dialect-airflow` | first dialect: six presets, trigger-rule names, `>>` / `<<`, key convention, dialect findings |
 | `@badag/db-schema` | Drizzle schemas: revision-scoped graphs and runs (`main-db`), task executions (`orchestrator-db`) |
-| `@badag/sdk` | the published entry point for the Airflow dialect; bundles `@badag/core` and `@badag/dag-airflow` |
+| `@badag/sdk` | the published entry point for the Airflow dialect; bundles `@badag/core` and `@badag/dialect-airflow` |
 | `@badag/vite` | published Vite plugin; hook-free for now |
 
 ## Status

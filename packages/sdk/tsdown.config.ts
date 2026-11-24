@@ -5,7 +5,7 @@ export default defineConfig({
     // The internal packages are source-only, so the SDK inlines them into the
     // published bundle instead of publishing them as runtime dependencies.
     deps: {
-        alwaysBundle: ["@badag/dag-airflow", "@badag/core"],
+        alwaysBundle: ["@badag/dialect-airflow", "@badag/core"],
         onlyBundle: ["@standard-schema/spec"],
     },
     dts: true,
