@@ -20,8 +20,30 @@ import type {
 import { assertAirflowKey, assertRouteLabel } from "./keys";
 import type { TriggerRule } from "./trigger-rule";
 
+const NODE_ROLE_ENUM = {
+    COMPUTE: "compute",
+    ROUTER: "router",
+    WAITER: "waiter",
+} as const;
+
+export type ComputeNodeRole = typeof NODE_ROLE_ENUM.COMPUTE;
+
+export type RouterNodeRole = typeof NODE_ROLE_ENUM.ROUTER;
+
+export type WaiterNodeRole = typeof NODE_ROLE_ENUM.WAITER;
+
 /** What a node contributes at execution. */
-export type NodeRole = "compute" | "router" | "waiter";
+export type NodeRole = ComputeNodeRole | RouterNodeRole | WaiterNodeRole;
+
+export const SHORT_CIRCUIT_BRANCH_ENUM = {
+    RUN: "run",
+    SKIP: "skip",
+} as const;
+
+export type ShortCircuitBranches = readonly [
+    typeof SHORT_CIRCUIT_BRANCH_ENUM.RUN,
+    typeof SHORT_CIRCUIT_BRANCH_ENUM.SKIP,
+];
 
 /** Config keys every preset writes, plus its preset-specific keys. */
 export type PresetConfig<
@@ -35,35 +57,37 @@ export type PresetConfig<
 } & Extra;
 
 /** Config produced by a `task` preset. */
-export type TaskConfig = PresetConfig<"compute">;
+export type TaskConfig = PresetConfig<ComputeNodeRole>;
 
 /** Config produced by a `branch` preset. */
 export type BranchConfig = PresetConfig<
-    "router",
+    RouterNodeRole,
     { readonly branches?: readonly string[] }
 >;
 
 /** Config produced by a `sensor` preset. */
 export type SensorConfig = PresetConfig<
-    "waiter",
+    WaiterNodeRole,
     { readonly pokeIntervalMs?: number }
 >;
 
 /** Config produced by a `delay` preset. */
 export type DelayConfig = PresetConfig<
-    "waiter",
+    WaiterNodeRole,
     { readonly durationMs: number }
 >;
 
 /** Config produced by a `shortCircuit` preset. */
 export type ShortCircuitConfig = PresetConfig<
-    "router",
-    { readonly branches: readonly ["run", "skip"] }
+    RouterNodeRole,
+    {
+        readonly branches: ShortCircuitBranches;
+    }
 >;
 
 /** Config produced by a `trigger` preset. */
 export type TriggerConfig = PresetConfig<
-    "compute",
+    ComputeNodeRole,
     { readonly dagId: string; readonly waitForCompletion: boolean }
 >;
 
@@ -159,7 +183,7 @@ export function branch<
         key,
         type: "branch",
         config: nodeConfig(
-            "router",
+            NODE_ROLE_ENUM.ROUTER,
             options,
             options.branches === undefined
                 ? undefined
@@ -213,7 +237,7 @@ export function sensor<const Key extends string>(
         key,
         type: "sensor",
         config: nodeConfig(
-            "waiter",
+            NODE_ROLE_ENUM.WAITER,
             options,
             pokeIntervalMs === undefined ? undefined : { pokeIntervalMs }
         ),
@@ -251,7 +275,7 @@ export function delay<const Key extends string>(
     return defineNode({
         key,
         type: "delay",
-        config: nodeConfig("waiter", options, {
+        config: nodeConfig(NODE_ROLE_ENUM.WAITER, options, {
             durationMs: options.durationMs,
         }),
     });
@@ -284,13 +308,19 @@ export function shortCircuit<const Key extends string>(
     return defineNode({
         key,
         type: "short_circuit",
-        config: nodeConfig("router", options, {
-            branches: ["run", "skip"] as const,
+        config: nodeConfig(NODE_ROLE_ENUM.ROUTER, options, {
+            branches: [
+                SHORT_CIRCUIT_BRANCH_ENUM.RUN,
+                SHORT_CIRCUIT_BRANCH_ENUM.SKIP,
+            ] as const,
         }),
         // The registered callback is a wrapper with constant source; the
         // condition is the behavior that determines the node.
         hashSource: options.condition.toString(),
-        run: (ctx) => (options.condition(ctx) ? "run" : "skip"),
+        run: (ctx) =>
+            options.condition(ctx)
+                ? SHORT_CIRCUIT_BRANCH_ENUM.RUN
+                : SHORT_CIRCUIT_BRANCH_ENUM.SKIP,
     });
 }
 
@@ -325,7 +355,7 @@ export function trigger<const Key extends string>(
     return defineNode({
         key,
         type: "trigger",
-        config: nodeConfig("compute", options, {
+        config: nodeConfig(NODE_ROLE_ENUM.COMPUTE, options, {
             dagId: options.dagId,
             waitForCompletion: options.waitForCompletion ?? false,
         }),
@@ -361,7 +391,7 @@ export function task<
     return defineNode({
         key,
         type: "task",
-        config: nodeConfig("compute", options),
+        config: nodeConfig(NODE_ROLE_ENUM.COMPUTE, options),
         output: options.output,
         run: options.run,
     });
