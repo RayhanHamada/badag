@@ -1,6 +1,8 @@
 # Task identity is the declared id
 
-A task definition's id is supplied by the caller as the first argument to every factory. The factory trims and validates it against Airflow's `task_id` convention, the definition carries it, and registration stores exactly that id. Nothing derives or rewrites identity from behavior, and no hash is computed.
+**Status**: accepted. [ADR 0018](0018-content-hashes-are-async-and-exclude-identity.md) adds content hashes as metadata; identity remains the declared id and no hash is used for it.
+
+A task definition's id is supplied by the caller as the first argument to every factory. The factory trims and validates it against Airflow's `task_id` convention, the definition carries it, and registration stores exactly that id. Nothing derives or rewrites identity from behavior, and no hash is used for identity.
 
 A DAG is identified only by its `dagId`; tasks are identified only by their `id`. The registered task map, `getTask()`, serialization edges, branch routing, and validation all use those ids. Callback contexts expose `{ id, payload }`, so there is no second name to keep in sync.
 

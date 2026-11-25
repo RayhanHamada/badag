@@ -29,6 +29,8 @@ function schema<Value>(): StandardSchemaV1<Value, Value> {
     };
 }
 
+const SHA256_HEX = /^[0-9a-f]{64}$/u;
+
 function implementationOf<
     Node extends { readonly implementation?: Implementation },
 >(node: Node): NonNullable<Node["implementation"]> {
@@ -134,6 +136,81 @@ describe("presets", () => {
             waitForCompletion: false,
         });
         expect(node.implementation).toBeUndefined();
+    });
+
+    it("hashes every preset from its behavior and config", async () => {
+        const nodes = [
+            task("extract", { run: () => 1 }),
+            branch("route", {
+                branches: ["us", "eu"] as const,
+                choose: () => "us",
+            }),
+            sensor("wait", { predicate: () => true }),
+            delay("settle", { durationMs: 500 }),
+            shortCircuit("gate", { condition: () => true }),
+            trigger("launch", { dagId: "nightly" }),
+        ];
+
+        const hashes = await Promise.all(nodes.map((node) => node.hash()));
+
+        for (const hash of hashes) {
+            expect(hash).toMatch(SHA256_HEX);
+        }
+
+        expect(new Set(hashes).size).toBe(nodes.length);
+    });
+
+    it("changes each preset hash when its important field changes", async () => {
+        const pairs = [
+            [task("a", { run: () => 1 }), task("a", { run: () => 2 })],
+            [
+                branch("a", {
+                    branches: ["us", "eu"] as const,
+                    choose: () => "us",
+                }),
+                branch("a", {
+                    branches: ["us", "eu"] as const,
+                    choose: () => "eu",
+                }),
+            ],
+            [
+                sensor("a", { predicate: () => true }),
+                sensor("a", { predicate: () => false }),
+            ],
+            [delay("a", { durationMs: 500 }), delay("a", { durationMs: 100 })],
+            [
+                shortCircuit("a", { condition: () => true }),
+                shortCircuit("a", { condition: () => false }),
+            ],
+            [
+                trigger("a", { dagId: "nightly" }),
+                trigger("a", { dagId: "hourly" }),
+            ],
+        ] as const;
+
+        const comparisons = await Promise.all(
+            pairs.map(async ([left, right]) => {
+                const leftHash = await left.hash();
+
+                return leftHash === (await right.hash());
+            })
+        );
+
+        expect(comparisons).not.toContain(true);
+    });
+
+    it("ignores the key and description in a preset hash", async () => {
+        const first = task("extract", {
+            description: "Raw source",
+            run: () => 1,
+        });
+
+        const second = task("load", {
+            description: "Stored result",
+            run: () => 1,
+        });
+
+        await expect(second.hash()).resolves.toBe(await first.hash());
     });
 
     it("validates preset keys and timing", () => {

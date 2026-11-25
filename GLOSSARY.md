@@ -22,6 +22,10 @@ A TypeScript SDK for declaring task graphs through dialects, wiring dependencies
 
 **Revision**: The content identity of one immutable graph definition, derived from its nodes and edges. Historical runs reference a revision. _Avoid_: version, build, snapshot
 
+**Task hash**: The asynchronous content hash of one task definition: its type, config with description removed, and behavior source. The key and description are excluded. _Avoid_: task id, revision
+
+**DAG hash**: The content hash of a DAG's registered task set, computed from each task hash sorted so registration order and task names do not matter. Topology and names stay in the revision. _Avoid_: revision, version
+
 **Node**: One unit in a graph, identified by its key. A node is data in the spec; what it does lives in an implementation. _Avoid_: vertex, step, job
 
 **Node key**: The declared identifier of a node, unique within its graph. Nothing derives or rewrites it, and it is the join between a spec and an implementation. _Avoid_: id, name, slug, content hash, UUID

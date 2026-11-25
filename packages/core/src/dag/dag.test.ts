@@ -8,6 +8,8 @@ function node(key: string, type = "task"): AnyNodeDefinition {
     return defineNode({ key, type, run: () => key });
 }
 
+const SHA256_HEX = /^[0-9a-f]{64}$/u;
+
 describe("DAG", () => {
     it("builds a spec and an implementation map", () => {
         const graph = createDAG("etl");
@@ -168,6 +170,117 @@ describe("DAG", () => {
 
         expect(built.implementations.has("later")).toBeFalsy();
         expect(graph.resolve("later")).toBeDefined();
+    });
+
+    it("hashes the registered tasks", async () => {
+        const graph = createDAG("etl");
+
+        graph.addAll([node("extract"), node("load")]);
+
+        await expect(graph.hash()).resolves.toMatch(SHA256_HEX);
+        await expect(graph.build().hash()).resolves.toBe(await graph.hash());
+    });
+
+    it("hashes task content, not registration order or keys", async () => {
+        const extract = defineNode({
+            key: "extract",
+            type: "task",
+            config: { stage: 1 },
+            run: () => 1,
+        });
+
+        const load = defineNode({
+            key: "load",
+            type: "task",
+            config: { stage: 2 },
+            run: () => 2,
+        });
+
+        const renamedExtract = defineNode({
+            key: "aaa",
+            type: "task",
+            config: { stage: 1 },
+            run: () => 1,
+        });
+
+        const renamedLoad = defineNode({
+            key: "bbb",
+            type: "task",
+            config: { stage: 2 },
+            run: () => 2,
+        });
+
+        const forward = createDAG("etl").addAll([extract, load]);
+        const reverse = createDAG("etl").addAll([load, extract]);
+
+        const renamed = createDAG("etl").addAll([renamedExtract, renamedLoad]);
+
+        const [first, second, third] = await Promise.all([
+            forward.hash(),
+            reverse.hash(),
+            renamed.hash(),
+        ]);
+
+        expect(second).toBe(first);
+        expect(third).toBe(first);
+    });
+
+    it("keeps the DAG hash independent of wiring", async () => {
+        const extract = node("extract");
+        const load = node("load");
+        const unwired = createDAG("etl").addAll([extract, load]);
+
+        const wired = createDAG("etl")
+            .addAll([extract, load])
+            .link("extract", "load");
+
+        await expect(wired.hash()).resolves.toBe(await unwired.hash());
+        expect(wired.spec().revision).not.toBe(unwired.spec().revision);
+    });
+
+    it("changes the DAG hash when a task's behavior changes", async () => {
+        const graph = createDAG("etl").add(
+            defineNode({ key: "extract", type: "task", run: () => 1 })
+        );
+
+        const before = await graph.hash();
+
+        graph.add(defineNode({ key: "load", type: "task", run: () => 2 }));
+
+        await expect(graph.hash()).resolves.not.toBe(before);
+    });
+
+    it("ignores description-only changes in the DAG hash", async () => {
+        const first = createDAG("etl").add(
+            defineNode({
+                key: "extract",
+                type: "task",
+                config: { description: "Raw" },
+                run: () => 1,
+            })
+        );
+
+        const second = createDAG("etl").add(
+            defineNode({
+                key: "extract",
+                type: "task",
+                config: { description: "Cleaned" },
+                run: () => 1,
+            })
+        );
+
+        await expect(second.hash()).resolves.toBe(await first.hash());
+    });
+
+    it("captures the DAG hash at build time", async () => {
+        const graph = createDAG("etl").add(node("extract"));
+        const built = graph.build();
+        const builtBefore = await built.hash();
+
+        graph.add(node("load"));
+
+        await expect(built.hash()).resolves.toBe(builtBefore);
+        await expect(graph.hash()).resolves.not.toBe(builtBefore);
     });
 
     it("is fluent and rejects an unknown endpoint", () => {

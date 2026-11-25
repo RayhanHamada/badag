@@ -5,6 +5,8 @@ import { schema } from "./test-schema";
 
 const run = (): string => "ok";
 
+const SHA256_HEX = /^[0-9a-f]{64}$/u;
+
 describe("node definitions", () => {
     it("keeps the key, type, config, and callback", () => {
         const node = defineNode({
@@ -80,6 +82,115 @@ describe("node definitions", () => {
         });
 
         expect(Object.isFrozen(node.config.nested)).toBeTruthy();
+    });
+
+    it("hashes type, config, and behavior, not the key", async () => {
+        const first = defineNode({
+            key: "extract",
+            type: "task",
+            config: { retries: 2 },
+            run,
+        });
+
+        const second = defineNode({
+            key: "load",
+            type: "task",
+            config: { retries: 2 },
+            run,
+        });
+
+        await expect(first.hash()).resolves.toMatch(SHA256_HEX);
+        await expect(second.hash()).resolves.toBe(await first.hash());
+    });
+
+    it("ignores the description", async () => {
+        const first = defineNode({
+            key: "extract",
+            type: "task",
+            config: { description: "Raw extraction" },
+            run,
+        });
+
+        const second = defineNode({
+            key: "extract",
+            type: "task",
+            config: { description: "Something else" },
+            run,
+        });
+
+        await expect(second.hash()).resolves.toBe(await first.hash());
+    });
+
+    it("changes with type, config, or behavior", async () => {
+        const base = defineNode({
+            key: "a",
+            type: "task",
+            config: { retries: 2 },
+            run,
+        });
+
+        const type = defineNode({
+            key: "a",
+            type: "sensor",
+            config: { retries: 2 },
+            run,
+        });
+
+        const config = defineNode({
+            key: "a",
+            type: "task",
+            config: { retries: 3 },
+            run,
+        });
+
+        const behavior = defineNode({
+            key: "a",
+            type: "task",
+            config: { retries: 2 },
+            run: () => "different",
+        });
+
+        const hashes = await Promise.all(
+            [base, type, config, behavior].map((node) => node.hash())
+        );
+
+        expect(new Set(hashes).size).toBe(4);
+    });
+
+    it("distinguishes a declaration without code from a callback", async () => {
+        const withoutRun = defineNode({ key: "a", type: "delay" });
+
+        const withRun = defineNode({
+            key: "a",
+            type: "delay",
+            run: () => 1,
+        });
+
+        await expect(withoutRun.hash()).resolves.not.toBe(await withRun.hash());
+    });
+
+    it("uses hashSource instead of the registered callback source", async () => {
+        const first = defineNode({
+            key: "a",
+            type: "short_circuit",
+            hashSource: "() => true",
+            run: () => "run",
+        });
+
+        const second = defineNode({
+            key: "a",
+            type: "short_circuit",
+            hashSource: "() => false",
+            run: () => "run",
+        });
+
+        await expect(first.hash()).resolves.not.toBe(await second.hash());
+    });
+
+    it("caches the hash promise", () => {
+        const node = defineNode({ key: "a", type: "task", run });
+
+        expect(node.hash()).toBe(node.hash());
     });
 
     it("rejects an empty key or type", () => {

@@ -50,10 +50,11 @@ const load = defineNode({
 });
 
 const dag = createDAG("etl").add(extract).add(load).link("extract", "load");
-const { spec, implementations } = dag.build();
+const { spec, implementations, hash } = dag.build();
 
 checkSpec(spec); // []
 implementations.get("extract"); // extract.implementation
+await hash(); // content hash of the registered tasks
 ```
 
 `build()` splits the two channels:
@@ -61,8 +62,21 @@ implementations.get("extract"); // extract.implementation
 - The **spec** is pure data: node key, type, config, and edges. It is frozen, contains no functions, and serializes.
 - The **implementations** are build-local code keyed by node key. They never enter the spec.
 - A node key is the only join between the two. `build()` returns a copy of the registry, so later builder changes cannot alter a built artifact.
+- The **hash** is the asynchronous content hash of the registered tasks, captured when `build()` runs.
 
 `resolve(key)` returns `undefined` when a key has no implementation. A declaration without code is legal; nothing in this package requires an implementation.
+
+## Hashes
+
+Every definition exposes `hash(): Promise<string>`. It hashes the definition's type, its config with `description` removed, and its behavior source (`run.toString()`, or `hashSource` when a caller wraps the behavior). The key and description are excluded, so renaming or relabeling a node does not change the hash.
+
+```ts
+await extract.hash(); // 64 lowercase hex digits
+```
+
+The digest is SHA-256 over the canonical JSON form, using Web Crypto, so it works in Node, Bun, browsers, and Workers. The promise is computed on first call and cached on the definition.
+
+`dag.hash()` and `built.hash()` hash the sorted task hashes. Registration order, task keys, and edges do not affect the result: those belong to `spec.revision`, which remains the synchronous, data-only content identifier.
 
 ## Mutations are transactions
 

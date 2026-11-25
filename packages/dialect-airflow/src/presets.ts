@@ -287,6 +287,9 @@ export function shortCircuit<const Key extends string>(
         config: nodeConfig("router", options, {
             branches: ["run", "skip"] as const,
         }),
+        // The registered callback is a wrapper with constant source; the
+        // condition is the behavior that determines the node.
+        hashSource: options.condition.toString(),
         run: (ctx) => (options.condition(ctx) ? "run" : "skip"),
     });
 }

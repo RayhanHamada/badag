@@ -73,16 +73,18 @@ const pricing = createDAG("daily-pricing")
 
 check(pricing.spec()); // [] — structural and dialect findings
 
-const { spec, implementations } = pricing.build();
+const { spec, implementations, hash } = pricing.build();
 
 spec.nodes.length; // 6
 implementations.has("publish"); // true
+await hash(); // content hash of the registered tasks
 ```
 
 `build()` splits the two channels:
 
 - The **spec** is pure data — node keys, open types, JSON config, labeled edges, and a content revision. It is frozen, callback-free, and serializable.
 - The **implementations** are build-local code keyed by node key. They never enter the spec.
+- The **hash** is the asynchronous content hash of the registered tasks: every task's type, config (minus description), and behavior source, sorted so registration order and task names do not matter. Topology stays in `spec.revision`.
 
 The node key is the only join. A spec loaded from storage and a DAG built in memory cross the same seams: `check(spec)`, `orderSpec(spec)`, and `build()`.
 

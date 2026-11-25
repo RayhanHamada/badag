@@ -33,6 +33,19 @@ Each preset returns its own config type (`TaskConfig`, `BranchConfig`, `SensorCo
 
 `delay` and `trigger` may omit code; their behavior is execution-defined. A declaration without an implementation still enters the spec.
 
+## Hashes
+
+Every preset returns a definition with `hash(): Promise<string>`. The hash covers the type, the config with `description` removed, and the behavior source:
+
+- `task`: `run`
+- `branch`: `choose`
+- `sensor`: `predicate`
+- `delay`: no code; `durationMs` and the rest of the config
+- `shortCircuit`: `condition`, not the generated `run` wrapper
+- `trigger`: `run` when supplied, plus `dagId` and `waitForCompletion`
+
+The key and description never affect the hash. `dag.hash()` hashes the sorted task hashes, so registration order and names do not matter; wiring stays in the spec revision.
+
 ## Wiring
 
 ```ts

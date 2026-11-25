@@ -8,6 +8,7 @@
 
 import type { JsonObject } from "../graph";
 import { freezeConfig } from "../graph";
+import { nodeHashOf } from "./hash";
 import type {
     AnySchema,
     Implementation,
@@ -46,6 +47,13 @@ export interface NodeDefinitionInput<
     readonly run?: (
         ctx: NodeContext<Key>
     ) => MaybePromise<NodeProducedOf<Output>>;
+    /**
+     * Source text used for the content hash instead of `run.toString()`.
+     *
+     * Presets use it when the registered callback is a generated wrapper and
+     * the behavior that determines the node lives in an option.
+     */
+    readonly hashSource?: string;
 }
 
 /** A node declaration with its key, type, config, and implementation. */
@@ -58,6 +66,14 @@ export interface NodeDefinition<
     readonly key: Key;
     readonly type: Type;
     readonly config: Config;
+    /**
+     * Content hash of the type, config (minus `description`), and behavior
+     * source. The key and description are excluded.
+     *
+     * Lazily computed on first call and cached; the promise owns the digest,
+     * so repeated calls do not rehash.
+     */
+    readonly hash: () => Promise<string>;
     /**
      * `undefined` when the node was declared without code.
      */
@@ -89,10 +105,24 @@ export function defineNode<
         throw new Error(`Node "${input.key}" needs a non-empty type`);
     }
 
+    const { key, type } = input;
+    const config = freezeConfig(input.config);
+
+    const source =
+        input.hashSource ??
+        (input.run === undefined ? undefined : input.run.toString());
+
+    let hash: Promise<string> | undefined;
+
     return Object.freeze({
-        key: input.key,
-        type: input.type,
-        config: freezeConfig(input.config),
+        key,
+        type,
+        config,
+        hash: () => {
+            hash ??= nodeHashOf(type, config, source);
+
+            return hash;
+        },
         implementation:
             input.run === undefined
                 ? undefined

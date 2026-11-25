@@ -9,6 +9,7 @@
 import { createGraph } from "../graph";
 import type { Graph, GraphEdge, GraphNode, GraphSpec } from "../graph";
 import type { AnyNodeDefinition } from "./definition";
+import { dagHashOf } from "./hash";
 import type { AnyImplementation } from "./types";
 
 /** One atomic mutation: definitions to register and edges to link. */
@@ -21,6 +22,14 @@ export interface DAGChange {
 export interface BuiltDAG {
     readonly spec: GraphSpec;
     readonly implementations: ReadonlyMap<string, AnyImplementation>;
+    /**
+     * Content hash of the registered tasks, captured at build time.
+     *
+     * Task hashes are sorted, so registration order does not matter. Names
+     * and topology live in `spec.revision`; this hash answers whether any
+     * task's type, config, or behavior changed.
+     */
+    readonly hash: () => Promise<string>;
 }
 
 /**
@@ -33,6 +42,7 @@ export class DAG<Key extends string = string> {
     readonly #key: Key;
     readonly #graph: Graph;
     readonly #implementations = new Map<string, AnyImplementation>();
+    readonly #hashes = new Map<string, () => Promise<string>>();
 
     constructor(key: Key) {
         this.#key = key;
@@ -42,6 +52,19 @@ export class DAG<Key extends string = string> {
     /** The DAG's declared key. */
     get key(): Key {
         return this.#key;
+    }
+
+    /**
+     * Content hash of the tasks currently registered.
+     *
+     * Each task contributes the hash of its type, config, and behavior; the
+     * task hashes are sorted, so registration order does not matter. Names
+     * and topology live in `spec().revision`.
+     */
+    async hash(): Promise<string> {
+        const hashes = [...this.#hashes.values()];
+
+        return dagHashOf(await Promise.all(hashes.map((compute) => compute())));
     }
 
     /** Register one definition. */
@@ -103,6 +126,8 @@ export class DAG<Key extends string = string> {
         });
 
         for (const definition of definitions) {
+            this.#hashes.set(definition.key, definition.hash);
+
             if (definition.implementation !== undefined) {
                 this.#implementations.set(
                     definition.key,
@@ -146,9 +171,15 @@ export class DAG<Key extends string = string> {
      * a copy, so later builder changes cannot alter a built artifact.
      */
     build(): BuiltDAG {
+        const hashes = [...this.#hashes.values()];
+
         return Object.freeze({
             spec: this.#graph.spec(),
             implementations: new Map(this.#implementations),
+            hash: async () =>
+                dagHashOf(
+                    await Promise.all(hashes.map((compute) => compute()))
+                ),
         });
     }
 }
