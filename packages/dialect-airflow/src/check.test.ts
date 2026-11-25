@@ -118,6 +118,31 @@ describe("dialect findings", () => {
         expect(codes).toContain(AIRFLOW_FINDING_CODE.InvalidDagId);
     });
 
+    it("reports a label that is not the target node key", () => {
+        const findings = checkAirflow(
+            rawSpec(
+                [
+                    {
+                        key: "route",
+                        type: "branch",
+                        config: { branches: ["us"] },
+                    },
+                    { key: "process-us", type: "task" },
+                ],
+                [{ from: "route", to: "process-us", label: "us" }]
+            )
+        );
+
+        expect(findings).toStrictEqual([
+            {
+                code: AIRFLOW_FINDING_CODE.LabelKeyMismatch,
+                subjects: ["route", "process-us", "us"],
+                message:
+                    'Edge "route" -> "process-us" carries label "us"; a route label must equal the target node key "process-us"',
+            },
+        ]);
+    });
+
     it("accepts a branch that routes exactly its declared labels", () => {
         const dag = createDAG("pricing");
 

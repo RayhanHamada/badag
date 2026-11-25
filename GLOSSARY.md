@@ -42,11 +42,11 @@ A TypeScript SDK for declaring task graphs through dialects, wiring dependencies
 
 **Edge**: A directed requirement that an upstream node finish before a downstream node becomes ready. An edge may carry one route label. Cycles are invalid. _Avoid_: link, connection, dependency arrow
 
-**Route label**: The string an edge carries so a router's selection can activate it. An edge out of a router carries the target node's key; every other edge is unlabeled. Labels are data; the graph layer never interprets them. _Avoid_: branch name, edge condition
+**Route label**: The string an edge carries so a router's selection can activate it; it is edge data, not a node identifier. In the Airflow dialect a router edge's label is its target's key, so the strings always match. _Avoid_: branch name, edge condition
 
 **Activation policy**: The rule a node evaluates over its route-active incoming edges to decide whether it runs, is skipped, or waits. _Avoid_: trigger rule (reserved for the Airflow preset), join rule
 
-**Implementation**: The code registered for a node key — the callable and any schema it declares. Implementations are build-local and never part of the spec. _Avoid_: behavior, handler, executor, function
+**Implementation**: The code registered for a node key — the callable and its optional output schema. Implementations are build-local and never part of the spec. _Avoid_: behavior, handler, executor, function
 
 **Finding**: One problem reported by a check, carrying a code, the values involved, and a message. Structural findings come from the graph layer; dialect findings are composed by the caller. Distinct from an error: wiring throws, a check reports. _Avoid_: violation, error, issue, warning
 
@@ -58,7 +58,7 @@ A TypeScript SDK for declaring task graphs through dialects, wiring dependencies
 
 **Preset**: A named authoring form in a dialect that fixes one node type and role and produces a node definition. _Avoid_: task kind, operator, template
 
-**Node options**: The authoring inputs a preset accepts — description, extra config, activation policy, output schema, and preset-specific fields. They become node config and implementation; they are not stored as a unit. _Avoid_: task metadata, settings, attributes
+**Node options**: The values a preset accepts — description, extra config, activation policy, output schema, and preset-specific fields. They become node config and implementation; they are not stored as a unit. _Avoid_: task metadata, settings, attributes
 
 **Preset config**: The part of node config a preset exposes — the keys it makes available and what they mean. It belongs to the preset, not the graph layer. _Avoid_: node options, settings
 
@@ -80,9 +80,9 @@ The first Badag dialect.
 
 **Branch task**: An Airflow preset of a router node that chooses one or more route labels. _Avoid_: branch operator, switch
 
-**Declared branch**: A route label listed in a branch preset's declared set. Every declared label must have an outgoing edge from the branch, and no outgoing edge from the branch may carry an undeclared label. A branch preset that declares nothing is unconstrained. Because an edge's label is the target node's key, a declared branch names a target node. _Avoid_: branch target, branch child
+**Declared branch**: A route label listed in a branch preset's declared set, which must appear on an outgoing edge from the branch with no undeclared labels; an empty declaration is unconstrained. A declared branch names a target node, because a route label is that node's key. _Avoid_: branch target, branch child
 
-**Short-circuit task**: An Airflow preset of a router node with two labels, run and skip. _Avoid_: gate, guard
+**Short-circuit task**: An Airflow preset of a router node with two labels, run and skip; its targets are the nodes keyed run and skip. _Avoid_: gate, guard
 
 **Trigger task**: An Airflow preset of a compute node that starts a different DAG and may suspend on the run it started. The target is a DAG id; a trigger that targets its own DAG is a self trigger: valid to declare, impossible to execute. _Avoid_: child DAG task, launcher
 
@@ -103,6 +103,8 @@ The first Badag dialect.
 **Duplicate declared branch**: The dialect finding for a branch preset that lists the same route label more than once. A repeated label activates the same edges, so the second listing states nothing. _Avoid_: repeated branch, duplicate branch
 
 **Unrouted branch**: The dialect finding for a declared branch with no outgoing labeled edge. A branch preset that declares nothing is unconstrained, so it is never unrouted. _Avoid_: missing branch, incomplete branch, dangling branch
+
+**Label-key mismatch**: The dialect finding for a labeled edge whose label is not the target node's key. Route labels and node keys are one vocabulary, so the two must match. _Avoid_: label drift, renamed edge
 
 **Invalid declared branch**: The dialect finding for a declared branch that could never be a node key, such as an empty or whitespace-only label. _Avoid_: bad branch name, malformed branch
 

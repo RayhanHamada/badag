@@ -122,7 +122,7 @@ Roles are config, not new node types: `role` is `compute`, `router`, or `waiter`
 `check(spec)` returns structural findings followed by dialect findings, each `{ code, subjects, message }`:
 
 - Structural: `duplicate-node`, `unknown-node`, `self-edge`, `cycle`.
-- Dialect: `invalid-dag-id`, `invalid-node-key`, `duplicate-declared-branch`, `invalid-declared-branch`, `unrouted-branch`, `undeclared-branch-target`, `self-trigger`.
+- Dialect: `invalid-dag-id`, `invalid-node-key`, `duplicate-declared-branch`, `invalid-declared-branch`, `unrouted-branch`, `undeclared-branch-target`, `label-key-mismatch`, `self-trigger`.
 
 ## Packages
 

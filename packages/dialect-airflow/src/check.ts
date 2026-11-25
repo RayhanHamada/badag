@@ -24,6 +24,8 @@ export const AIRFLOW_FINDING_CODE = {
     UnroutedBranch: "unrouted-branch",
     /** An outgoing edge carries a label the branch never declared. */
     UndeclaredBranchTarget: "undeclared-branch-target",
+    /** A labeled edge's label is not its target node key. */
+    LabelKeyMismatch: "label-key-mismatch",
     /** A trigger targets the DAG that contains it. */
     SelfTrigger: "self-trigger",
 } as const;
@@ -169,6 +171,18 @@ export function checkAirflow(spec: GraphSpec): readonly AirflowFinding[] {
     }
 
     const labels = outgoingLabels(spec);
+
+    for (const edge of spec.edges) {
+        if (edge.label === undefined || edge.label === edge.to) {
+            continue;
+        }
+
+        push({
+            code: AIRFLOW_FINDING_CODE.LabelKeyMismatch,
+            subjects: [edge.from, edge.to, edge.label],
+            message: `Edge "${edge.from}" -> "${edge.to}" carries label "${edge.label}"; a route label must equal the target node key "${edge.to}"`,
+        });
+    }
 
     for (const node of spec.nodes) {
         const keyProblem = airflowKeyError("Node key", node.key);

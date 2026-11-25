@@ -49,7 +49,7 @@ const dag = createDAG("pricing").parse`${source} >> ${extract} >> ${route}`
 
 `checkAirflow(spec)` returns dialect findings; `check(spec)` returns `checkSpec(spec)` followed by `checkAirflow(spec)`. Codes are kebab-case:
 
-`invalid-dag-id`, `invalid-node-key`, `duplicate-declared-branch`, `invalid-declared-branch`, `unrouted-branch`, `undeclared-branch-target`, `self-trigger`.
+`invalid-dag-id`, `invalid-node-key`, `duplicate-declared-branch`, `invalid-declared-branch`, `unrouted-branch`, `undeclared-branch-target`, `label-key-mismatch`, `self-trigger`.
 
 A branch that declares no labels is unconstrained. A branch that declares labels must route every one of them, and may not route anything else.
 
