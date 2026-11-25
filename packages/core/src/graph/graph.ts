@@ -158,6 +158,15 @@ export class Graph {
         return this.#nodes.has(key);
     }
 
+    /**
+     * Internal: read one node without copying the node map.
+     *
+     * The node is frozen, so callers can hold the reference safely.
+     */
+    _node(key: string): GraphNode | undefined {
+        return this.#nodes.get(key);
+    }
+
     /** Nodes in insertion order, keyed by their key. */
     nodes(): ReadonlyMap<string, GraphNode> {
         return new Map(this.#nodes);

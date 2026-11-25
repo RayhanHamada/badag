@@ -93,16 +93,16 @@ export class AirflowDAG<Key extends string = string> extends DAG<Key> {
         const fresh: AnyNodeDefinition[] = [];
 
         for (const definition of unique.values()) {
-            if (!this.has(definition.key)) {
+            const node = this._node(definition.key);
+
+            if (node === undefined) {
                 fresh.push(definition);
 
                 continue;
             }
 
-            const node = this.nodes().get(definition.key);
-
             const same =
-                node?.type === definition.type &&
+                node.type === definition.type &&
                 this.resolve(definition.key) === definition.implementation &&
                 canonicalStringify(node.config) ===
                     canonicalStringify(definition.config);

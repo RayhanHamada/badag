@@ -154,6 +154,15 @@ export class DAG<Key extends string = string> {
         return this.#graph.has(key);
     }
 
+    /**
+     * Internal: read one registered node without copying the node map.
+     *
+     * The node is frozen, so callers can hold the reference safely.
+     */
+    _node(key: string): GraphNode | undefined {
+        return this.#graph._node(key);
+    }
+
     /** Registered nodes in insertion order, keyed by node key. */
     nodes(): ReadonlyMap<string, GraphNode> {
         return this.#graph.nodes();

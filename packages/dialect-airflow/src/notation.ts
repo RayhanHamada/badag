@@ -28,9 +28,6 @@ const RIGHT_SHIFT = ">>";
 
 const LEFT_SHIFT = "<<";
 
-/** Whitespace around a single operator is allowed; anything else is not. */
-const OPERATOR_PATTERN = /^\s*(?<operator>>>|<<)\s*$/u;
-
 // Operands cross the template boundary untyped for JavaScript callers; these
 // checks establish the domain value before use.
 // oxlint-disable anti-slop/no-runtime-typeof
@@ -115,7 +112,7 @@ export function parseNotation(
     }
 
     for (const segment of segments) {
-        if (/[\r\n]/u.test(segment)) {
+        if (segment.includes("\n") || segment.includes("\r")) {
             throw new Error(
                 `Wiring expression in DAG "${dagId}" spans multiple lines; call parse once per expression`
             );
@@ -134,31 +131,35 @@ export function parseNotation(
         );
     }
 
-    const groups = operands.map((operand) => operandGroup(operand, dagId));
+    const allOperands: AnyNodeDefinition[] = [];
     const steps: ParsedStep[] = [];
+    let previous = operandGroup(operands[0], dagId);
 
-    for (let index = 1; index < groups.length; index += 1) {
+    for (const definition of previous) {
+        allOperands.push(definition);
+    }
+
+    for (let index = 1; index < operands.length; index += 1) {
         const segment = segments[index];
-        const operator = OPERATOR_PATTERN.exec(segment)?.groups?.operator;
-        const previous = groups[index - 1];
-        const current = groups[index];
+        const operator = segment.trim();
+        const current = operandGroup(operands[index], dagId);
 
         if (operator === RIGHT_SHIFT) {
             steps.push({ from: previous, to: current });
-
-            continue;
-        }
-
-        if (operator === LEFT_SHIFT) {
+        } else if (operator === LEFT_SHIFT) {
             steps.push({ from: current, to: previous });
-
-            continue;
+        } else {
+            throw new Error(
+                `Unrecognized wiring syntax "${segment}" in DAG "${dagId}"; expected ">>" or "<<" between tasks`
+            );
         }
 
-        throw new Error(
-            `Unrecognized wiring syntax "${segment}" in DAG "${dagId}"; expected ">>" or "<<" between tasks`
-        );
+        for (const definition of current) {
+            allOperands.push(definition);
+        }
+
+        previous = current;
     }
 
-    return { steps, operands: groups.flat() };
+    return { steps, operands: allOperands };
 }
