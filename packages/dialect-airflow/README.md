@@ -27,7 +27,7 @@ import {
 | `shortCircuit` | `short_circuit` | `router`  | `branches: ["run", "skip"]`  |
 | `trigger`      | `trigger`       | `compute` | `dagId`, `waitForCompletion` |
 
-Every preset accepts `description`, `config`, and `triggerRule`. `task` also accepts `input` and `output`; `branch`, `sensor`, `shortCircuit`, and `trigger` accept `input`; `delay` declares neither schema. `triggerRule` is stored only when supplied; the dialect exposes `all_success` as the default name, but the SDK does not apply it.
+Every preset accepts `description`, `config`, and `triggerRule`; `task` also accepts `output`. `triggerRule` is stored only when supplied; the dialect exposes `all_success` as the default name, but the SDK does not apply it.
 
 Each preset returns its own config type (`TaskConfig`, `BranchConfig`, `SensorConfig`, `DelayConfig`, `ShortCircuitConfig`, `TriggerConfig`), so `node.config` exposes the keys that preset writes.
 
@@ -42,8 +42,7 @@ const dag = createDAG("pricing").parse`${source} >> ${extract} >> ${route}`
 
 - One expression per call. A newline, leading or trailing text, an empty list, a nested list, or a non-task operand is rejected.
 - `>>` points from left to right; `<<` points back.
-- An edge **out of a router** (`branch` or `short_circuit`) defaults to the target's key as its label. Every other edge is unlabeled.
-- `labeled(label, node)` overrides the label, so a route name never dictates a node's key. A label on the left side of an operator is rejected.
+- An edge **out of a router** (`branch` or `short_circuit`) carries the target's key as its label. Every other edge is unlabeled. Route labels and node keys are one vocabulary; there is no label override.
 - Repeating a statement is legal when the same definition is supplied again; a different definition under the same key throws.
 
 ## Findings

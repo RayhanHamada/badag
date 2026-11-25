@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import { createDAG } from "./dag";
-import { labeled } from "./notation";
 import { branch, task } from "./presets";
 
 describe("notation", () => {
@@ -35,23 +34,6 @@ describe("notation", () => {
         expect(dag.spec().edges).toStrictEqual([
             { from: "route", to: "us", label: "us" },
             { from: "route", to: "eu", label: "eu" },
-        ]);
-    });
-
-    it("honors an explicit label override", () => {
-        const dag = createDAG("pricing");
-
-        const route = branch("route", {
-            branches: ["us"] as const,
-            choose: () => "us",
-        });
-
-        const processUs = task("process-us", { run: () => 1 });
-
-        expect(dag.parse`${route} >> ${labeled("us", processUs)}`).toBe(dag);
-
-        expect(dag.spec().edges).toStrictEqual([
-            { from: "route", to: "process-us", label: "us" },
         ]);
     });
 
@@ -109,15 +91,12 @@ describe("notation", () => {
         expect(() => dag.parse`${bad}`).toThrow(/expects tasks/u);
     });
 
-    it("rejects leading text, a bad operator, and a labeled source", () => {
+    it("rejects leading text and a bad operator", () => {
         const dag = createDAG("etl");
         const a = task("a", { run: () => 1 });
         const b = task("b", { run: () => 2 });
 
         expect(() => dag.parse`oops ${a}`).toThrow(/before the first/u);
         expect(() => dag.parse`${a} -> ${b}`).toThrow(/Unrecognized/u);
-        expect(() => dag.parse`${labeled("us", a)} >> ${b}`).toThrow(
-            /target of an edge/u
-        );
     });
 });

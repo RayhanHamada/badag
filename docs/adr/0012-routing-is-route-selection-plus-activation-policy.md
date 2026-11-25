@@ -2,6 +2,8 @@
 
 **Status**: accepted
 
+**Superseded in part by** [ADR 0017](0017-route-labels-are-node-keys.md): an edge out of a router always carries the target key as its label; the labeled-operand override is removed.
+
 An edge may carry a label. A router node selects the labels it activates and may also name non-adjacent node keys. The runtime carries the active route set forward through the graph until a node's activation policy consumes it, and that policy decides whether the node runs, is skipped, or waits. Joins are policies on ordinary nodes, not nodes of their own. The definition is never pruned: the executed graph is derived from the spec, the selected labels, and the recorded outcomes.
 
 ## Context

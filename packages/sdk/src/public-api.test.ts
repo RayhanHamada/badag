@@ -20,7 +20,6 @@ describe("@badag/sdk", () => {
                 "defineNode",
                 "delay",
                 "isAirflowKey",
-                "labeled",
                 "sensor",
                 "shortCircuit",
                 "task",

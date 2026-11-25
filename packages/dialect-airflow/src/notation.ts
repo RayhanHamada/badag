@@ -9,30 +9,19 @@
 
 import type { AnyNodeDefinition } from "@badag/core";
 
-import { assertRouteLabel } from "./keys";
-
-/** An operand that pairs a route label with the node it targets. */
-export interface LabeledOperand {
-    readonly label: string;
-    readonly definition: AnyNodeDefinition;
-}
-
-/** One task or labeled task in a wiring expression. */
-export type NotationOperand = AnyNodeDefinition | LabeledOperand;
-
-/** One operand of a wiring expression: a task, a labeled task, or a flat list. */
-export type WiringOperand = NotationOperand | readonly NotationOperand[];
+/** One operand of a wiring expression: a task or a flat list of tasks. */
+export type WiringOperand = AnyNodeDefinition | readonly AnyNodeDefinition[];
 
 /** One wiring step: every operand on the left is upstream of every one on the right. */
 export interface ParsedStep {
-    readonly from: readonly NotationOperand[];
-    readonly to: readonly NotationOperand[];
+    readonly from: readonly AnyNodeDefinition[];
+    readonly to: readonly AnyNodeDefinition[];
 }
 
 /** A parsed expression: its steps and every operand it named. */
 export interface ParsedNotation {
     readonly steps: readonly ParsedStep[];
-    readonly operands: readonly NotationOperand[];
+    readonly operands: readonly AnyNodeDefinition[];
 }
 
 const RIGHT_SHIFT = ">>";
@@ -54,26 +43,6 @@ function describe(value: unknown): string {
     }
 }
 
-/**
- * Pair a route label with the node it targets.
- *
- * Use it on the right-hand side of an edge to override the label a router
- * would otherwise infer from the target's key.
- */
-export function labeled(
-    label: string,
-    definition: AnyNodeDefinition
-): LabeledOperand {
-    assertRouteLabel(label);
-
-    return Object.freeze({ label, definition });
-}
-
-/** Whether an operand carries an explicit label. */
-export function isLabeled(operand: NotationOperand): operand is LabeledOperand {
-    return "label" in operand && "definition" in operand;
-}
-
 function isNodeDefinition(value: unknown): value is AnyNodeDefinition {
     return (
         typeof value === "object" &&
@@ -83,19 +52,9 @@ function isNodeDefinition(value: unknown): value is AnyNodeDefinition {
     );
 }
 
-function assertOperand(value: unknown, dagId: string): NotationOperand {
+function assertOperand(value: unknown, dagId: string): AnyNodeDefinition {
     if (isNodeDefinition(value)) {
         return value;
-    }
-
-    if (
-        typeof value === "object" &&
-        value !== null &&
-        Object.hasOwn(value, "label") &&
-        Object.hasOwn(value, "definition")
-    ) {
-        // SAFETY: the two own-property checks above identify a LabeledOperand.
-        return value as LabeledOperand;
     }
 
     throw new TypeError(
@@ -106,12 +65,12 @@ function assertOperand(value: unknown, dagId: string): NotationOperand {
 function operandGroup(
     operand: WiringOperand,
     dagId: string
-): readonly NotationOperand[] {
+): readonly AnyNodeDefinition[] {
     if (!Array.isArray(operand)) {
         return [assertOperand(operand, dagId)];
     }
 
-    const group: NotationOperand[] = [];
+    const group: AnyNodeDefinition[] = [];
 
     for (const entry of operand) {
         if (Array.isArray(entry)) {

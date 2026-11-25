@@ -97,11 +97,10 @@ The core graph and task layers contain no Airflow vocabulary: `@badag/core` owns
 ```ts
 dag.parse`${a} >> ${b} >> ${c}`; // a -> b -> c
 dag.parse`${a} >> ${b} << ${c}`; // a -> b, c -> b
-dag.parse`${route} >> ${[us, eu]}`; // labeled edges us and eu
-dag.parse`${route} >> ${labeled("us", processUs)}`; // explicit label
+dag.parse`${route} >> ${[us, eu]}`; // route labels "us" and "eu"
 ```
 
-An edge **out of a router** defaults to the target's key as its route label. Every other edge is unlabeled. `labeled(label, node)` overrides the default, so a route name never dictates a node's key. Wiring is transactional: a rejected operand, label, edge, or duplicate leaves the DAG unchanged.
+An edge **out of a router** carries the target node's key as its route label; every other edge is unlabeled. A route label is therefore always a node key. Wiring is transactional: a rejected operand, label, edge, or duplicate leaves the DAG unchanged.
 
 ## Presets
 

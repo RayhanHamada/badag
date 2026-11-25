@@ -42,7 +42,7 @@ A TypeScript SDK for declaring task graphs through dialects, wiring dependencies
 
 **Edge**: A directed requirement that an upstream node finish before a downstream node becomes ready. An edge may carry one route label. Cycles are invalid. _Avoid_: link, connection, dependency arrow
 
-**Route label**: The string an edge carries so a router's selection can activate it. An edge out of a router defaults to the target node's key; every other edge is unlabeled unless overridden. Labels are data; the graph layer never interprets them. _Avoid_: branch name, edge condition
+**Route label**: The string an edge carries so a router's selection can activate it. An edge out of a router carries the target node's key; every other edge is unlabeled. Labels are data; the graph layer never interprets them. _Avoid_: branch name, edge condition
 
 **Activation policy**: The rule a node evaluates over its route-active incoming edges to decide whether it runs, is skipped, or waits. _Avoid_: trigger rule (reserved for the Airflow preset), join rule
 
@@ -80,9 +80,7 @@ The first Badag dialect.
 
 **Branch task**: An Airflow preset of a router node that chooses one or more route labels. _Avoid_: branch operator, switch
 
-**Declared branch**: A route label listed in a branch preset's declared set. Every declared label must have an outgoing edge from the branch, and no outgoing edge from the branch may carry an undeclared label. A branch preset that declares nothing is unconstrained. By default an edge's label is the target node's key; an override pairs a different label with that node. _Avoid_: branch target, branch child
-
-**Label override**: A routed operand that pairs a route label with a node, so the edge carries a label other than the target's key. It exists so a route name never has to dictate a node's identity. _Avoid_: named edge, alias, renamed branch
+**Declared branch**: A route label listed in a branch preset's declared set. Every declared label must have an outgoing edge from the branch, and no outgoing edge from the branch may carry an undeclared label. A branch preset that declares nothing is unconstrained. Because an edge's label is the target node's key, a declared branch names a target node. _Avoid_: branch target, branch child
 
 **Short-circuit task**: An Airflow preset of a router node with two labels, run and skip. _Avoid_: gate, guard
 

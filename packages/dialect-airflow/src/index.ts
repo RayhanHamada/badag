@@ -13,15 +13,9 @@ export {
     isAirflowKey,
 } from "./keys";
 
-export { isLabeled, labeled, parseNotation } from "./notation";
+export { parseNotation } from "./notation";
 
-export type {
-    LabeledOperand,
-    NotationOperand,
-    ParsedNotation,
-    ParsedStep,
-    WiringOperand,
-} from "./notation";
+export type { ParsedNotation, ParsedStep, WiringOperand } from "./notation";
 
 export { branch, delay, sensor, shortCircuit, task, trigger } from "./presets";
 

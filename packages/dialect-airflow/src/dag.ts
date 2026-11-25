@@ -8,15 +8,10 @@
 import { canonicalStringify, DAG } from "@badag/core";
 import type { AnyNodeDefinition, GraphEdge } from "@badag/core";
 
-import { isLabeled, parseNotation } from "./notation";
-import type { NotationOperand, WiringOperand } from "./notation";
+import { parseNotation } from "./notation";
+import type { WiringOperand } from "./notation";
 
 const ROUTER_TYPES: ReadonlySet<string> = new Set(["branch", "short_circuit"]);
-
-/** The node a wiring operand refers to, labeled or not. */
-function definitionOf(operand: NotationOperand): AnyNodeDefinition {
-    return isLabeled(operand) ? operand.definition : operand;
-}
 
 /**
  * A DAG with Airflow-style wiring notation.
@@ -31,10 +26,9 @@ export class AirflowDAG<Key extends string = string> extends DAG<Key> {
      * dag.parse`${a} >> ${b} >> ${c}`          => a -> b -> c
      * dag.parse`${a} >> ${b} << ${c}`          => a -> b, c -> b
      * dag.parse`${route} >> ${[us, eu]}`       => labeled edges us and eu
-     * dag.parse`${route} >> ${labeled("us", task)}`
      *
-     * An edge out of a router defaults to the target's key as its label; every
-     * other edge is unlabeled unless the target is labeled explicitly.
+     * An edge out of a router carries the target's key as its label; every
+     * other edge is unlabeled. A route label is therefore always a node key.
      *
      * The call is transactional: a rejected operand, label, edge, or duplicate
      * leaves the DAG unchanged. A definition already registered is reused only
@@ -50,36 +44,16 @@ export class AirflowDAG<Key extends string = string> extends DAG<Key> {
 
         for (const step of parsed.steps) {
             for (const source of step.from) {
-                if (isLabeled(source)) {
-                    throw new Error(
-                        `A route label applies to the target of an edge, not its source; remove the label from "${source.definition.key}"`
-                    );
-                }
-
                 const router = ROUTER_TYPES.has(source.type);
 
                 for (const target of step.to) {
-                    const targetDefinition = definitionOf(target);
-
                     const graphEdge: GraphEdge = {
                         from: source.key,
-                        to: targetDefinition.key,
+                        to: target.key,
                     };
 
-                    let label: string | undefined;
-
-                    if (isLabeled(target)) {
-                        const { label: explicit } = target;
-
-                        label = explicit;
-                    } else if (router) {
-                        label = targetDefinition.key;
-                    }
-
                     edges.push(
-                        label === undefined
-                            ? graphEdge
-                            : { ...graphEdge, label }
+                        router ? { ...graphEdge, label: target.key } : graphEdge
                     );
                 }
             }
@@ -100,12 +74,11 @@ export class AirflowDAG<Key extends string = string> extends DAG<Key> {
      * supplied again; anything else throws the duplicate error.
      */
     #freshDefinitions(
-        operands: readonly NotationOperand[]
+        operands: readonly AnyNodeDefinition[]
     ): readonly AnyNodeDefinition[] {
         const unique = new Map<string, AnyNodeDefinition>();
 
-        for (const operand of operands) {
-            const definition = definitionOf(operand);
+        for (const definition of operands) {
             const previous = unique.get(definition.key);
 
             if (previous !== undefined && previous !== definition) {
