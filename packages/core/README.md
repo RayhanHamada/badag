@@ -105,19 +105,18 @@ Nodes and edges keep insertion order for display. `revision` hashes the canonica
 
 ## Typing
 
-`input` and `output` are Standard Schemas. They type the callback; the SDK never applies them.
+`output` is a Standard Schema. It types the callback's return value; the SDK never applies it. The callback context carries only the node's declared key.
 
 ```ts
 const extract = defineNode({
     key: "extract",
     type: "task",
-    input: z.object({ url: z.string() }),
     output: z.array(z.number()),
-    run: (ctx) => fetchPrices(ctx.payload.url), // ctx.payload: { url: string }
-}); // run must return number[] | PromiseLike<number[]>
+    run: () => fetchPrices(), // must return number[] | PromiseLike<number[]>
+});
 ```
 
-Without an input schema `ctx.payload` is `undefined`; without an output schema the result is `unknown`.
+Without an output schema the result is `unknown`.
 
 ## Boundaries
 

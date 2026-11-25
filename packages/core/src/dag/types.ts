@@ -14,11 +14,6 @@ export type AnySchema = StandardSchemaV1 | undefined;
 /** A value that may be returned synchronously or as a promise. */
 export type MaybePromise<Value> = PromiseLike<Value> | Value;
 
-/** The value delivered in `ctx.payload` for an input schema. */
-export type NodePayloadOf<Schema> = Schema extends StandardSchemaV1
-    ? StandardSchemaV1.InferOutput<Schema>
-    : undefined;
-
 /**
  * The value a node produces for an output schema.
  *
@@ -34,40 +29,33 @@ export type NodeProducedOf<Schema> = [
 /**
  * Context passed to a node implementation.
  *
- * `key` is the node's declared key; `payload` is typed by its input schema.
+ * `key` is the node's declared key. Nothing else is known: the SDK defines no
+ * payload, so a runtime that supplies one owns its contract.
  */
-export interface NodeContext<Key extends string = string, Payload = unknown> {
+export interface NodeContext<Key extends string = string> {
     readonly key: Key;
-    readonly payload: Payload;
 }
 
 /**
- * The callable and schemas registered for a node key.
+ * The callable and output schema registered for a node key.
  *
  * `run` is a method so a narrower implementation stays assignable to the
- * erased registry type; `NodeContext` is the payload contract, and the schemas
- * record what that contract is.
+ * erased registry type; `NodeContext` is the invocation contract, and the
+ * schema records what the return value is.
  */
 export interface Implementation<
     Key extends string = string,
-    Input extends AnySchema = AnySchema,
     Output extends AnySchema = AnySchema,
 > {
     // Bivariance keeps a narrower implementation assignable to the registry
     // type; a property signature would reject it under strictFunctionTypes.
     // oxlint-disable-next-line typescript/method-signature-style
-    run(
-        ctx: NodeContext<Key, NodePayloadOf<Input>>
-    ): MaybePromise<NodeProducedOf<Output>>;
-    /**
-     * Schema for the value delivered in `ctx.payload`.
-     */
-    readonly input?: Input;
+    run(ctx: NodeContext<Key>): MaybePromise<NodeProducedOf<Output>>;
     /**
      * Schema for the value the node produces.
      */
     readonly output?: Output;
 }
 
-/** An implementation with its schemas erased for registry storage. */
+/** An implementation with its schema erased for registry storage. */
 export type AnyImplementation = Implementation;

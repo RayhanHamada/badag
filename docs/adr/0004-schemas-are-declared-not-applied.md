@@ -2,6 +2,8 @@
 
 **Amended by** [ADR 0010](0010-graph-spec-and-implementations-are-separate-channels.md): schemas live on implementations, not on the graph spec. The decision below is unchanged.
 
+**Superseded in part by** [ADR 0016](0016-task-callbacks-receive-no-payload.md): input schemas and `ctx.payload` are removed; output schemas remain.
+
 Task definitions accept `input` and `output` Standard Schemas, and the SDK never runs them. A schema types `ctx.payload` and constrains what a callback may return, but nothing validates either value at runtime. The SDK stores the schema object on the definition and passes it to a scheduler through `DAGTask.definition`; the scheduler decides whether, when, and how to validate. This was chosen because the SDK does not execute tasks, and validation is inseparable from execution: a payload is only known once whoever runs the task produces it.
 
 ## Consequences

@@ -13,7 +13,6 @@ import type {
     Implementation,
     MaybePromise,
     NodeContext,
-    NodePayloadOf,
     NodeProducedOf,
 } from "./types";
 
@@ -21,7 +20,6 @@ import type {
 export interface NodeDefinitionInput<
     Key extends string = string,
     Type extends string = string,
-    Input extends AnySchema = AnySchema,
     Output extends AnySchema = AnySchema,
     Config extends JsonObject = JsonObject,
 > {
@@ -38,10 +36,6 @@ export interface NodeDefinitionInput<
      */
     readonly config?: Config;
     /**
-     * Schema for the value delivered in `ctx.payload`.
-     */
-    readonly input?: Input;
-    /**
      * Schema for the value the node produces.
      */
     readonly output?: Output;
@@ -50,7 +44,7 @@ export interface NodeDefinitionInput<
      * implementation is supplied later or by the runtime.
      */
     readonly run?: (
-        ctx: NodeContext<Key, NodePayloadOf<Input>>
+        ctx: NodeContext<Key>
     ) => MaybePromise<NodeProducedOf<Output>>;
 }
 
@@ -58,7 +52,6 @@ export interface NodeDefinitionInput<
 export interface NodeDefinition<
     Key extends string = string,
     Type extends string = string,
-    Input extends AnySchema = AnySchema,
     Output extends AnySchema = AnySchema,
     Config extends JsonObject = JsonObject,
 > {
@@ -68,16 +61,11 @@ export interface NodeDefinition<
     /**
      * `undefined` when the node was declared without code.
      */
-    readonly implementation?: Implementation<Key, Input, Output>;
+    readonly implementation?: Implementation<Key, Output>;
 }
 
 /** A node definition with its literals erased for registration. */
-export type AnyNodeDefinition = NodeDefinition<
-    string,
-    string,
-    AnySchema,
-    AnySchema
->;
+export type AnyNodeDefinition = NodeDefinition<string, string, AnySchema>;
 
 /**
  * Build a node definition.
@@ -88,12 +76,11 @@ export type AnyNodeDefinition = NodeDefinition<
 export function defineNode<
     const Key extends string,
     const Type extends string,
-    Input extends AnySchema = undefined,
     Output extends AnySchema = undefined,
     Config extends JsonObject = JsonObject,
 >(
-    input: NodeDefinitionInput<Key, Type, Input, Output, Config>
-): NodeDefinition<Key, Type, Input, Output, Config> {
+    input: NodeDefinitionInput<Key, Type, Output, Config>
+): NodeDefinition<Key, Type, Output, Config> {
     if (input.key.trim() === "") {
         throw new Error("Node key cannot be empty");
     }
@@ -111,7 +98,6 @@ export function defineNode<
                 ? undefined
                 : Object.freeze({
                       run: input.run,
-                      input: input.input,
                       output: input.output,
                   }),
     });

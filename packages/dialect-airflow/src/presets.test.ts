@@ -74,7 +74,6 @@ describe("presets", () => {
             Promise.resolve(
                 implementationOf(node).run({
                     key: "route",
-                    payload: undefined,
                 })
             )
         ).resolves.toBe("us");
@@ -94,7 +93,6 @@ describe("presets", () => {
             Promise.resolve(
                 implementationOf(node).run({
                     key: "wait",
-                    payload: undefined,
                 })
             )
         ).resolves.toBeTruthy();
@@ -122,7 +120,6 @@ describe("presets", () => {
             Promise.resolve(
                 implementationOf(node).run({
                     key: "gate",
-                    payload: undefined,
                 })
             )
         ).resolves.toBe("skip");
@@ -205,18 +202,25 @@ describe("presets", () => {
         expect(dag.has("extract")).toBeTruthy();
     });
 
-    it("types the task payload from its input schema", () => {
+    it("types the task result from its output schema", async () => {
         const node = task("extract", {
-            input: schema<string>(),
-            run: (ctx) => ctx.payload.length,
+            output: schema<number>(),
+            run: (ctx) => {
+                expectTypeOf(ctx.key).toEqualTypeOf<"extract">();
+
+                return 1;
+            },
         });
 
         expectTypeOf(implementationOf(node).run)
             .parameter(0)
-            .toEqualTypeOf<NodeContext<"extract", string>>();
+            .toEqualTypeOf<NodeContext<"extract">>();
         expectTypeOf(implementationOf(node).run).returns.toEqualTypeOf<
-            MaybePromise<unknown>
+            MaybePromise<number>
         >();
+        await expect(
+            Promise.resolve(implementationOf(node).run({ key: "extract" }))
+        ).resolves.toBe(1);
     });
 
     it("narrows branch names to the declared tuple", () => {

@@ -71,6 +71,5 @@ export type {
     NodeContext,
     NodeDefinition,
     NodeDefinitionInput,
-    NodePayloadOf,
     NodeProducedOf,
 } from "@badag/core";

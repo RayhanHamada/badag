@@ -58,7 +58,7 @@ A TypeScript SDK for declaring task graphs through dialects, wiring dependencies
 
 **Preset**: A named authoring form in a dialect that fixes one node type and role and produces a node definition. _Avoid_: task kind, operator, template
 
-**Node options**: The authoring inputs a preset accepts — description, extra config, activation policy, schemas, and preset-specific fields. They become node config and implementation; they are not stored as a unit. _Avoid_: task metadata, settings, attributes
+**Node options**: The authoring inputs a preset accepts — description, extra config, activation policy, output schema, and preset-specific fields. They become node config and implementation; they are not stored as a unit. _Avoid_: task metadata, settings, attributes
 
 **Preset config**: The part of node config a preset exposes — the keys it makes available and what they mean. It belongs to the preset, not the graph layer. _Avoid_: node options, settings
 
@@ -69,10 +69,6 @@ A TypeScript SDK for declaring task graphs through dialects, wiring dependencies
 The first Badag dialect.
 
 **Task definition**: The dialect's authoring form of a compute node: a key, an implementation, and optional node options declared before the node belongs to any DAG. _Avoid_: task spec, task template, unregistered task
-
-**Payload**: The value a task receives, typed by its input schema. Without an input schema the payload is `undefined`. _Avoid_: argument, params, data
-
-**Input schema**: An optional Standard Schema declared on an implementation that types its payload. It is never applied by the SDK. _Avoid_: validator, parser, params schema
 
 **Output schema**: An optional Standard Schema declared on an implementation that constrains the value the node produces. A fixed-result preset describes its produced value at the type level without declaring a runtime schema. _Avoid_: result schema, return type
 

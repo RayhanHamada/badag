@@ -53,16 +53,14 @@ describe("node definitions", () => {
         expect(Object.isFrozen(node.implementation)).toBeTruthy();
     });
 
-    it("keeps the declared schemas", () => {
-        const input = schema<string>();
+    it("keeps the declared output schema", () => {
         const output = schema<number>();
 
         const node = defineNode({
             key: "a",
             type: "task",
-            input,
             output,
-            run: (ctx) => ctx.payload.length,
+            run: () => 1,
         });
 
         const { implementation } = node;
@@ -71,7 +69,6 @@ describe("node definitions", () => {
             throw new Error("expected an implementation");
         }
 
-        expect(implementation.input).toBe(input);
         expect(implementation.output).toBe(output);
     });
 

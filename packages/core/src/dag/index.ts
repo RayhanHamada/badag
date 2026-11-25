@@ -16,6 +16,5 @@ export type {
     Implementation,
     MaybePromise,
     NodeContext,
-    NodePayloadOf,
     NodeProducedOf,
 } from "./types";

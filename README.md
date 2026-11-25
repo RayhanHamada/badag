@@ -105,7 +105,7 @@ An edge **out of a router** defaults to the target's key as its route label. Eve
 
 ## Presets
 
-Every preset accepts `description`, `config`, and `triggerRule`. `task` also accepts `input` and `output`; `branch`, `sensor`, `shortCircuit`, and `trigger` accept `input`; `delay` declares neither schema.
+Every preset accepts `description`, `config`, and `triggerRule`; `task` also accepts `output`. No preset declares an input schema: callbacks receive only their node key, and the SDK does not define a payload.
 
 | Preset | Role | Config | Notes |
 | --- | --- | --- | --- |

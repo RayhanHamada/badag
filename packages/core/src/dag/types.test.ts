@@ -5,13 +5,16 @@ import { schema } from "./test-schema";
 import type { MaybePromise, NodeContext } from "./types";
 
 describe("node typing", () => {
-    it("types the payload and result from the declared schemas", () => {
+    it("types the result from the declared output schema", () => {
         const node = defineNode({
             key: "extract",
             type: "task",
-            input: schema<string>(),
             output: schema<number>(),
-            run: (ctx) => ctx.payload.length,
+            run: (ctx) => {
+                expectTypeOf(ctx.key).toEqualTypeOf<"extract">();
+
+                return 1;
+            },
         });
 
         const { implementation } = node;
@@ -22,18 +25,18 @@ describe("node typing", () => {
 
         expectTypeOf(implementation.run)
             .parameter(0)
-            .toEqualTypeOf<NodeContext<"extract", string>>();
+            .toEqualTypeOf<NodeContext<"extract">>();
         expectTypeOf(implementation.run).returns.toEqualTypeOf<
             MaybePromise<number>
         >();
     });
 
-    it("uses an undefined payload and an unknown result without schemas", () => {
+    it("uses an unknown result without an output schema", () => {
         const node = defineNode({
             key: "side",
             type: "task",
             run: (ctx) => {
-                expectTypeOf(ctx.payload).toEqualTypeOf<undefined>();
+                expectTypeOf(ctx.key).toEqualTypeOf<"side">();
 
                 return 1;
             },
