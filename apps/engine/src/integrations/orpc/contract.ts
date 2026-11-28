@@ -1,5 +1,4 @@
 import { dagsContract } from "./routes/dags.contract";
-import { playgroundContract } from "./routes/playground.contract";
 import { runsContract } from "./routes/runs.contract";
 import { schedulesContract } from "./routes/schedules.contract";
 import { systemContract } from "./routes/system.contract";
@@ -13,5 +12,4 @@ export const apiContract = {
     dags: dagsContract,
     runs: runsContract,
     schedules: schedulesContract,
-    playground: playgroundContract,
 } as const;

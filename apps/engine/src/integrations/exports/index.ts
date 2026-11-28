@@ -1,7 +1,7 @@
 // oxlint-disable no-unused-private-class-members
 
-// Durable Object and Workflow classes exported by the dashboard worker.
-// Re-exported from the Worker entry (`src/server.ts`) so `@cloudflare/vite-plugin`
+// Durable Object and Workflow classes exported by the engine worker.
+// Re-exported from the Worker entry (`src/index.ts`) so `@cloudflare/vite-plugin`
 // emits them as named module exports; `cloudflare.config.ts` declares the same
 // names under `exports`.
 

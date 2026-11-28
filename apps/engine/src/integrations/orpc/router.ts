@@ -2,7 +2,6 @@ import { implement } from "@orpc/server";
 
 import { apiContract } from "./contract";
 import { dagsRouter } from "./routes/dags";
-import { playgroundRouter } from "./routes/playground";
 import { runsRouter } from "./routes/runs";
 import { schedulesRouter } from "./routes/schedules";
 import { systemRouter } from "./routes/system";
@@ -14,5 +13,4 @@ export const apiRouter = os.router({
     dags: dagsRouter,
     runs: runsRouter,
     schedules: schedulesRouter,
-    playground: playgroundRouter,
 });

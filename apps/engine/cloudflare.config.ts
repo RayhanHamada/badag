@@ -1,8 +1,8 @@
 import { bindings, defineConfig, exports } from "cf/config";
 
-import * as entrypoint from "./src/server" with { type: "cf-worker" };
+import * as entrypoint from "./src/index" with { type: "cf-worker" };
 
-const APP_NAME = "badag-dashboard";
+const APP_NAME = "badag-engine";
 const TASK_ORCHESTRATOR_CLASS_NAME = "TaskOrchestratorDO";
 const DYNAMIC_WORKFLOW_CLASS_NAME = "DynamicWorkflow";
 

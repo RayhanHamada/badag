@@ -64,36 +64,6 @@ describe("app pages", () => {
         }
     });
 
-    it("runs a dynamic workflow from the playground", async () => {
-        const page = await browser.newPage();
-
-        try {
-            // The page is server-rendered; its component chunk hydrates after
-            // the document. Network idle is the signal that the click will be
-            // handled rather than lost.
-            const response = await page.goto(`${baseUrl}/playground`, {
-                waitUntil: "networkidle",
-            });
-
-            expect(response?.status()).toBe(200);
-            await page
-                .getByRole("heading", { name: "Playground" })
-                .waitFor({ state: "visible" });
-            await page.getByRole("button", { name: "Run workflow" }).click();
-            await page
-                .getByText("Handled by tenant")
-                .waitFor({ state: "visible", timeout: 45_000 });
-            await expect(
-                page.getByText("HELLO FROM ACME!").count()
-            ).resolves.toBeGreaterThan(0);
-            await expect(
-                page.getByText("normalize", { exact: true }).count()
-            ).resolves.toBeGreaterThan(0);
-        } finally {
-            await page.close();
-        }
-    });
-
     it("serves the public API health check without credentials", async () => {
         const response = await fetch(`${baseUrl}/api/v1/health`);
 

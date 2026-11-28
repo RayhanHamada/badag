@@ -4,7 +4,6 @@ import { ValibotToJsonSchemaConverter } from "@orpc/valibot";
 import { apiContract } from "./contract";
 import { API_ERROR_JSON_SCHEMA, API_ERROR_STATUS_MAP } from "./errors";
 import { apiDefinitions } from "./models";
-import { playgroundDefinitions } from "./routes/playground.contract";
 
 const generator = new OpenAPIGenerator({
     converters: [
@@ -12,10 +11,7 @@ const generator = new OpenAPIGenerator({
             // Registering schemas by identity turns them into
             // `components.schemas` entries referenced with `$ref` instead of
             // duplicated inline objects.
-            definitions: {
-                ...apiDefinitions,
-                ...playgroundDefinitions,
-            },
+            definitions: apiDefinitions,
             // Procedures reuse the same schema objects and definitions are
             // recomputed per conversion; cache keeps repeated work off.
             cache: true,
@@ -52,11 +48,6 @@ export function generateOpenApiDocument() {
                 {
                     name: "System",
                     description: "Service health.",
-                },
-                {
-                    name: "Playground",
-                    description:
-                        "Per-tenant dynamic Workflow demonstration backed by the Worker Loader.",
                 },
             ],
         },

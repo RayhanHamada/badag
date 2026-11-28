@@ -1,0 +1,35 @@
+{
+    "name": "@badag/engine-api",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "cf dev",
+        "build": "cf build",
+        "deploy": "cf deploy",
+        "typecheck": "cf workers types && tsrs --noEmit --fast",
+        "db:generate:main": "drizzle-kit generate --dialect sqlite --driver durable-sqlite --schema node_modules/@badag/db-schema/src/main-db/schema.ts --out migrations/main-db",
+        "db:generate:do": "drizzle-kit generate --dialect sqlite --driver durable-sqlite --schema node_modules/@badag/db-schema/src/orchestrator-db/schema.ts --out migrations/orchestrator-db",
+        "db:generate": "bun db:generate:main && bun db:generate:do",
+        "db:clean-generate": "rm -rf migrations && bun db:generate:main && bun db:generate:do",
+        "db:migrate": "cf d1 migrations apply 00000000000000000000000000000000 --local --persist-to .cloudflare/state --dir migrations/main-db"
+    },
+    "dependencies": {
+        "@badag/db-schema": "workspace:*",
+        "@cloudflare/dynamic-workflows": "^0.1.1",
+        "@orpc/contract": "^2.0.0-beta.50",
+        "@orpc/json-schema": "^2.0.0-beta.50",
+        "@orpc/openapi": "^2.0.0-beta.50",
+        "@orpc/server": "^2.0.0-beta.50",
+        "@orpc/valibot": "^2.0.0-beta.50",
+        "drizzle-orm": "^0.45.4",
+        "valibot": "^1.5.0",
+        "zod": "^4.6.7"
+    },
+    "devDependencies": {
+        "@cloudflare/vite-plugin": "^2.0.0-rc.5",
+        "cf": "^1.0.0-rc.5",
+        "drizzle-kit": "^0.31.11",
+        "tsrs": "^7.1.0-beta.tsrs5",
+        "vite": "^8.3.8"
+    }
+}
